@@ -255,12 +255,11 @@ def render():
                         chart_col1, chart_col2 = st.columns(2)
                         
                         with chart_col1:
-                            # Histogram with KDE
+                            # Histogram with default bins
                             st.markdown("##### 📊 Histogram & Distribution")
                             fig_hist = px.histogram(
                                 data,
                                 x=selected_numeric_col,
-                                nbins=30,
                                 marginal="box",
                                 color_discrete_sequence=['#667eea']
                             )
@@ -379,8 +378,19 @@ def render():
                         st.markdown("---")
                         st.markdown("##### 📋 Phân Bổ Giá Trị (Binned)")
                         
+                        # Bins slider for binned distribution
+                        bin_slider_col1, bin_slider_col2 = st.columns([3, 1])
+                        with bin_slider_col1:
+                            n_bins = st.slider(
+                                f"Số bins cho {selected_numeric_col}:",
+                                min_value=1,
+                                max_value=20,
+                                value=10,
+                                step=1,
+                                key=f"binned_dist_{selected_numeric_col}"
+                            )
+                        
                         # Create bins
-                        n_bins = 10
                         bins = pd.cut(col_data, bins=n_bins)
                         bin_counts = bins.value_counts().sort_index()
                         
@@ -433,55 +443,11 @@ def render():
                 
                 viz_type = st.radio(
                     "Chọn loại biểu đồ:",
-                    ["Histogram", "Box Plot", "Correlation Heatmap"],
+                    ["Box Plot", "Correlation Heatmap"],
                     horizontal=True
                 )
                 
-                if viz_type == "Histogram":
-                    st.markdown("#### 📊 Histogram - Phân Phối Biến Số")
-                    
-                    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
-                    if numeric_cols:
-                        selected_col = st.selectbox("Chọn biến để vẽ:", numeric_cols, key="upload_hist_col")
-                        
-                        col1, col2 = st.columns([2, 1])
-                        with col1:
-                            bins = st.slider("Số bins:", 10, 100, 30, key="upload_hist_bins")
-                        with col2:
-                            show_kde = st.checkbox("Hiện KDE", value=True, key="upload_hist_kde")
-                        
-                        # Create histogram
-                        fig = px.histogram(
-                            data, 
-                            x=selected_col,
-                            nbins=bins,
-                            title=f"Phân phối của {selected_col}",
-                            marginal="box" if show_kde else None,
-                            color_discrete_sequence=['#667eea']
-                        )
-                        
-                        fig.update_layout(
-                            template="plotly_dark",
-                            height=500,
-                            showlegend=False
-                        )
-                        
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                        # Statistics for selected column
-                        col1, col2, col3, col4, col5 = st.columns(5)
-                        with col1:
-                            st.metric("Mean", f"{data[selected_col].mean():.2f}")
-                        with col2:
-                            st.metric("Median", f"{data[selected_col].median():.2f}")
-                        with col3:
-                            st.metric("Std Dev", f"{data[selected_col].std():.2f}")
-                        with col4:
-                            st.metric("Min", f"{data[selected_col].min():.2f}")
-                        with col5:
-                            st.metric("Max", f"{data[selected_col].max():.2f}")
-                
-                elif viz_type == "Box Plot":
+                if viz_type == "Box Plot":
                     st.markdown("#### 📦 Box Plot - Phát Hiện Outliers")
                     
                     numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
