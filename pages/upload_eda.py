@@ -439,51 +439,16 @@ def render():
             
             # Tab 3: Data Distribution
             with tab3:
-                st.markdown("### 📈 Phân Phối Dữ Liệu")
+                st.markdown("### 📈 Phân Phối & Tương Quan Dữ Liệu")
                 
                 viz_type = st.radio(
-                    "Chọn loại biểu đồ:",
-                    ["Box Plot", "Correlation Heatmap"],
+                    "Chọn loại phân tích:",
+                    ["Correlation Heatmap", "Scatter Plot Matrix", "Scatter Plot (2 Biến)", "Grouped Analysis"],
                     horizontal=True
                 )
                 
-                if viz_type == "Box Plot":
-                    st.markdown("#### 📦 Box Plot - Phát Hiện Outliers")
-                    
-                    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
-                    if numeric_cols:
-                        selected_cols = st.multiselect(
-                            "Chọn các biến để so sánh:",
-                            numeric_cols,
-                            default=numeric_cols[:min(4, len(numeric_cols))],
-                            key="upload_box_cols"
-                        )
-                        
-                        if selected_cols:
-                            # Create box plot
-                            fig = go.Figure()
-                            
-                            for col in selected_cols:
-                                fig.add_trace(go.Box(
-                                    y=data[col],
-                                    name=col,
-                                    boxmean='sd'
-                                ))
-                            
-                            fig.update_layout(
-                                title="Box Plot - Phân tích outliers",
-                                template="plotly_dark",
-                                height=500,
-                                showlegend=True
-                            )
-                            
-                            st.plotly_chart(fig, use_container_width=True)
-                            
-                            # Outlier detection info
-                            st.info("💡 **Gợi ý**: Các điểm nằm ngoài 'râu' của box plot có thể là outliers cần xử lý.")
-                
-                else:  # Correlation Heatmap
-                    st.markdown("#### 🔥 Ma Trận Tương Quan")
+                if viz_type == "Correlation Heatmap":
+                    st.markdown("#### � Ma Trận Tương Quan")
                     
                     numeric_data = data.select_dtypes(include=[np.number])
                     if not numeric_data.empty and len(numeric_data.columns) > 1:
@@ -519,13 +484,208 @@ def render():
                                     high_corr.append({
                                         'Biến 1': corr_matrix.columns[i],
                                         'Biến 2': corr_matrix.columns[j],
-                                        'Tương quan': f"{corr_matrix.iloc[i, j]:.3f}"
+                                        'Tương quan': f"{corr_matrix.iloc[i, j]:.3f}",
+                                        'Loại': 'Dương' if corr_matrix.iloc[i, j] > 0 else 'Âm'
                                     })
                         
                         if high_corr:
-                            st.dataframe(pd.DataFrame(high_corr), use_container_width=True)
+                            st.dataframe(pd.DataFrame(high_corr), use_container_width=True, hide_index=True)
                         else:
                             st.info(f"Không tìm thấy cặp biến nào có tương quan >= {threshold}")
+                    else:
+                        st.warning("Cần ít nhất 2 biến số để tạo ma trận tương quan.")
+                
+                elif viz_type == "Scatter Plot Matrix":
+                    st.markdown("#### 🔷 Scatter Plot Matrix (Pair Plot)")
+                    st.caption("Hiển thị mối quan hệ giữa từng cặp biến số")
+                    
+                    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+                    if len(numeric_cols) >= 2:
+                        # Allow selection of variables
+                        max_vars = min(5, len(numeric_cols))
+                        selected_vars = st.multiselect(
+                            "Chọn các biến để hiển thị (tối đa 5):",
+                            numeric_cols,
+                            default=numeric_cols[:max_vars],
+                            max_selections=5,
+                            key="upload_scatter_matrix_vars"
+                        )
+                        
+                        if len(selected_vars) >= 2:
+                            # Create scatter matrix
+                            fig = px.scatter_matrix(
+                                data,
+                                dimensions=selected_vars,
+                                color_discrete_sequence=['#667eea'],
+                                opacity=0.6
+                            )
+                            
+                            fig.update_layout(
+                                template="plotly_dark",
+                                height=800,
+                                title="Scatter Plot Matrix - Phân tích quan hệ từng cặp biến"
+                            )
+                            
+                            fig.update_traces(diagonal_visible=False, showupperhalf=False)
+                            
+                            st.plotly_chart(fig, use_container_width=True)
+                            
+                            st.info("💡 **Gợi ý**: Tìm kiếm các pattern tuyến tính hoặc phi tuyến giữa các cặp biến.")
+                        else:
+                            st.warning("Vui lòng chọn ít nhất 2 biến.")
+                    else:
+                        st.warning("Cần ít nhất 2 biến số để tạo Scatter Plot Matrix.")
+                
+                elif viz_type == "Scatter Plot (2 Biến)":
+                    st.markdown("#### � Phân Tích Chi Tiết 2 Biến")
+                    
+                    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+                    if len(numeric_cols) >= 2:
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            x_var = st.selectbox("Chọn biến X:", numeric_cols, key="upload_scatter_x")
+                        with col2:
+                            y_vars = [col for col in numeric_cols if col != x_var]
+                            y_var = st.selectbox("Chọn biến Y:", y_vars, key="upload_scatter_y")
+                        
+                        # Options
+                        opt_col1, opt_col2, opt_col3 = st.columns(3)
+                        with opt_col1:
+                            show_trendline = st.checkbox("Hiện đường xu hướng", value=True, key="upload_scatter_trend")
+                        with opt_col2:
+                            show_marginal = st.checkbox("Hiện phân phối biên", value=True, key="upload_scatter_marginal")
+                        with opt_col3:
+                            color_by_cat = st.checkbox("Tô màu theo biến phân loại", value=False, key="upload_scatter_color")
+                        
+                        # Color selection
+                        color_var = None
+                        if color_by_cat:
+                            cat_cols = data.select_dtypes(include=['object', 'category']).columns.tolist()
+                            if cat_cols:
+                                color_var = st.selectbox("Chọn biến phân loại:", cat_cols, key="upload_scatter_color_var")
+                        
+                        # Create scatter plot
+                        fig = px.scatter(
+                            data,
+                            x=x_var,
+                            y=y_var,
+                            color=color_var,
+                            trendline="ols" if show_trendline else None,
+                            marginal_x="histogram" if show_marginal else None,
+                            marginal_y="histogram" if show_marginal else None,
+                            opacity=0.6,
+                            title=f"Mối quan hệ giữa {x_var} và {y_var}"
+                        )
+                        
+                        fig.update_layout(
+                            template="plotly_dark",
+                            height=600
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        # Calculate correlation
+                        corr = data[x_var].corr(data[y_var])
+                        
+                        metric_col1, metric_col2, metric_col3 = st.columns(3)
+                        with metric_col1:
+                            st.metric("Tương quan Pearson", f"{corr:.3f}")
+                        with metric_col2:
+                            if abs(corr) >= 0.7:
+                                st.metric("Mức độ", "Mạnh 💪", delta="Tương quan cao")
+                            elif abs(corr) >= 0.4:
+                                st.metric("Mức độ", "Trung bình ⚖️", delta="Tương quan vừa")
+                            else:
+                                st.metric("Mức độ", "Yếu 📉", delta="Tương quan thấp")
+                        with metric_col3:
+                            st.metric("Loại", "Dương ↗️" if corr > 0 else "Âm ↘️")
+                    else:
+                        st.warning("Cần ít nhất 2 biến số.")
+                
+                else:  # Grouped Analysis
+                    st.markdown("#### 📦 Phân Tích Theo Nhóm")
+                    st.caption("So sánh phân phối biến số theo các nhóm phân loại")
+                    
+                    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+                    cat_cols = data.select_dtypes(include=['object', 'category']).columns.tolist()
+                    
+                    if numeric_cols and cat_cols:
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            num_var = st.selectbox("Chọn biến số:", numeric_cols, key="upload_group_num")
+                        with col2:
+                            cat_var = st.selectbox("Chọn biến phân loại:", cat_cols, key="upload_group_cat")
+                        
+                        # Limit categories to avoid clutter
+                        unique_cats = data[cat_var].nunique()
+                        if unique_cats > 10:
+                            st.warning(f"⚠️ Biến {cat_var} có {unique_cats} nhóm. Chỉ hiển thị 10 nhóm phổ biến nhất.")
+                            top_cats = data[cat_var].value_counts().head(10).index
+                            plot_data = data[data[cat_var].isin(top_cats)]
+                        else:
+                            plot_data = data
+                        
+                        # Choose plot type
+                        plot_type = st.radio(
+                            "Loại biểu đồ:",
+                            ["Box Plot", "Violin Plot", "Strip Plot"],
+                            horizontal=True,
+                            key="upload_group_plot_type"
+                        )
+                        
+                        if plot_type == "Box Plot":
+                            fig = px.box(
+                                plot_data,
+                                x=cat_var,
+                                y=num_var,
+                                color=cat_var,
+                                title=f"Phân phối {num_var} theo {cat_var}",
+                                points="outliers"
+                            )
+                        elif plot_type == "Violin Plot":
+                            fig = px.violin(
+                                plot_data,
+                                x=cat_var,
+                                y=num_var,
+                                color=cat_var,
+                                title=f"Phân phối {num_var} theo {cat_var}",
+                                box=True,
+                                points="outliers"
+                            )
+                        else:  # Strip Plot
+                            fig = px.strip(
+                                plot_data,
+                                x=cat_var,
+                                y=num_var,
+                                color=cat_var,
+                                title=f"Phân phối {num_var} theo {cat_var}"
+                            )
+                        
+                        fig.update_layout(
+                            template="plotly_dark",
+                            height=500,
+                            xaxis_tickangle=-45
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        # Statistics by group
+                        st.markdown("#### 📊 Thống Kê Theo Nhóm")
+                        group_stats = plot_data.groupby(cat_var)[num_var].agg([
+                            ('Số lượng', 'count'),
+                            ('Trung bình', 'mean'),
+                            ('Trung vị', 'median'),
+                            ('Độ lệch chuẩn', 'std'),
+                            ('Min', 'min'),
+                            ('Max', 'max')
+                        ]).round(2)
+                        
+                        st.dataframe(group_stats, use_container_width=True)
+                    else:
+                        if not numeric_cols:
+                            st.warning("Không có biến số nào trong dữ liệu.")
+                        if not cat_cols:
+                            st.warning("Không có biến phân loại nào trong dữ liệu.")
             
             # Tab 4: AI Analysis
             with tab4:

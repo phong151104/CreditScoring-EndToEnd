@@ -20,6 +20,10 @@ matplotlib==3.8.2
 seaborn==0.13.0
 streamlit-aggrid==1.0.5
 
+# Statistical Analysis
+statsmodels==0.14.1
+scipy==1.11.4
+
 # LLM Integration (Optional - for future backend)
 # openai==1.6.1
 # langchain==0.1.0
