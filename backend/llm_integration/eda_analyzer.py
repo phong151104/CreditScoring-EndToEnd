@@ -221,8 +221,13 @@ class EDADataCollector:
             "data_quality_issues": self.collect_data_quality_issues()
         }
     
-    def to_text_summary(self) -> str:
-        """Chuyển đổi summary thành văn bản dễ đọc cho LLM"""
+    def to_text_summary(self, compact: bool = False) -> str:
+        """
+        Chuyển đổi summary thành văn bản dễ đọc cho LLM
+        
+        Args:
+            compact: If True, return compact version (limit details for large datasets)
+        """
         summary = self.generate_full_summary()
         
         text_parts = []
@@ -235,7 +240,12 @@ class EDADataCollector:
         text_parts.append(f"Số dòng: {basic['n_rows']:,}")
         text_parts.append(f"Số cột: {basic['n_columns']}")
         text_parts.append(f"Dung lượng: {basic['memory_usage_mb']:.2f} MB")
-        text_parts.append(f"\nCác cột: {', '.join(basic['columns'])}")
+        
+        # Compact mode: only list column names count
+        if compact and len(basic['columns']) > 15:
+            text_parts.append(f"\nCác cột ({len(basic['columns'])} cột): {', '.join(basic['columns'][:10])}... (và {len(basic['columns'])-10} cột khác)")
+        else:
+            text_parts.append(f"\nCác cột: {', '.join(basic['columns'])}")
         
         # Missing Data
         text_parts.append("\n" + "=" * 80)
@@ -413,7 +423,10 @@ Hãy trả lời bằng tiếng Việt, chuyên nghiệp nhưng dễ hiểu."""
         """
         # Collect EDA data
         collector = EDADataCollector(data)
-        eda_summary = collector.to_text_summary()
+        
+        # Use compact mode for large datasets (>20 columns)
+        compact = len(data.columns) > 20
+        eda_summary = collector.to_text_summary(compact=compact)
         
         # If no API key, return template analysis
         if self.api_key is None:
@@ -429,8 +442,29 @@ Hãy trả lời bằng tiếng Việt, chuyên nghiệp nhưng dễ hiểu."""
         # Call LLM based on provider
         try:
             if self.provider == "google":
-                # Google Gemini
-                response = self.client.generate_content(prompt)
+                # Google Gemini with timeout
+                import google.generativeai as genai
+                
+                # Configure timeout and safety settings
+                generation_config = genai.GenerationConfig(
+                    max_output_tokens=8000,
+                    temperature=0.7,
+                )
+                
+                # Add timeout wrapper
+                import time
+                start_time = time.time()
+                timeout = 200  # 200 seconds timeout for complex analysis
+                
+                response = self.client.generate_content(
+                    prompt,
+                    generation_config=generation_config,
+                    request_options={'timeout': timeout}
+                )
+                
+                elapsed = time.time() - start_time
+                print(f"✓ LLM response received in {elapsed:.1f}s")
+                
                 return response.text
             
             elif self.provider == "openai":
