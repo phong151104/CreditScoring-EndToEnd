@@ -22,6 +22,11 @@ def render():
         st.warning("⚠️ Chưa có dữ liệu. Vui lòng upload dữ liệu từ trang 'Upload & EDA' trước.")
         return
     
+    # Initialize backup system - save original data on first visit
+    if 'data_original_backup' not in st.session_state:
+        st.session_state.data_original_backup = st.session_state.data.copy()
+        st.session_state.column_backups = {}  # Store backup before each column processing
+    
     data = st.session_state.data
     
     # Show data selector if processed data exists
@@ -56,13 +61,18 @@ def render():
     
     with col_status3:
         if total_configs > 0:
-            if st.button("🗑️ Xóa Tất Cả Cấu Hình", key="clear_all_configs", help="Xóa tất cả cấu hình nhưng giữ nguyên dữ liệu"):
+            if st.button("� Hoàn Về Ban Đầu", key="clear_all_configs", help="Xóa tất cả cấu hình và hoàn về dữ liệu gốc", type="primary"):
+                # Restore original data
+                st.session_state.data = st.session_state.data_original_backup.copy()
+                # Clear all configs
                 st.session_state.missing_config = {}
                 st.session_state.encoding_config = {}
                 st.session_state.scaling_config = {}
                 st.session_state.outlier_config = {}
                 st.session_state.binning_config = {}
-                st.success("✅ Đã xóa tất cả cấu hình!")
+                # Clear column backups
+                st.session_state.column_backups = {}
+                st.success("✅ Đã hoàn về dữ liệu ban đầu!")
                 st.rerun()
     
     st.markdown("---")
@@ -125,223 +135,12 @@ def render():
                     'Tỷ lệ (%)': (missing_data.values / len(data) * 100).round(2)
                 })
                 st.dataframe(missing_df, use_container_width=True, hide_index=True)
-                
-                # Show rows with missing data
-                st.markdown("---")
-                st.markdown("##### 📋 Xem Bản Ghi Có Dữ Liệu Thiếu")
-                
-                # Get rows with any missing values
-                rows_with_missing = data[data.isnull().any(axis=1)]
-                
-                col_preview1, col_preview2 = st.columns([3, 2])
-                with col_preview1:
-                    st.metric("Số dòng có missing", len(rows_with_missing), 
-                             f"{len(rows_with_missing)/len(data)*100:.1f}% tổng số")
-                with col_preview2:
-                    show_missing_rows = st.checkbox("Hiển thị các dòng", value=True, key="show_missing_rows")
-                
-                if show_missing_rows:
-                    # Filter options - select column to prioritize
-                    selected_col_filter = st.selectbox(
-                        "Ưu tiên hiển thị cột thiếu:",
-                        ["Tất cả"] + list(missing_data.index),
-                        key="missing_col_filter",
-                        help="Chọn cột để ưu tiên sắp xếp các dòng thiếu dữ liệu ở cột đó lên trên. Tất cả các dòng sẽ được hiển thị."
-                    )
-                    
-                    # Sort data to prioritize rows with missing data in selected column
-                    if selected_col_filter != "Tất cả":
-                        # Create a priority column: 1 if selected column is missing, 0 otherwise
-                        rows_display = rows_with_missing.copy()
-                        rows_display['_priority'] = rows_display[selected_col_filter].isnull().astype(int)
-                        # Sort by priority (missing in selected column first), then by index
-                        rows_display = rows_display.sort_values('_priority', ascending=False)
-                        # Drop priority column - SHOW ALL ROWS
-                        display_data = rows_display.drop('_priority', axis=1)
-                        
-                        # Show info about filtering
-                        missing_in_selected = rows_with_missing[selected_col_filter].isnull().sum()
-                        st.info(f"🎯 Ưu tiên: {missing_in_selected} dòng thiếu dữ liệu ở `{selected_col_filter}` được sắp xếp lên trên. Hiển thị tất cả {len(display_data):,} dòng.")
-                    else:
-                        # SHOW ALL rows with missing data
-                        display_data = rows_with_missing
-                    
-                    # Highlight missing values with special color for selected column
-                    def highlight_missing(val):
-                        return 'background-color: #ff6b6b; color: white;' if pd.isnull(val) else ''
-                    
-                    def highlight_selected_col_missing(row):
-                        # Special highlight for selected column if missing
-                        styles = [''] * len(row)
-                        for idx, (col_name, val) in enumerate(row.items()):
-                            if pd.isnull(val):
-                                if selected_col_filter != "Tất cả" and col_name == selected_col_filter:
-                                    # Brighter red for selected column
-                                    styles[idx] = 'background-color: #ff3333; color: white; font-weight: bold; border: 2px solid #ff0000;'
-                                else:
-                                    # Normal red for other missing values
-                                    styles[idx] = 'background-color: #ff6b6b; color: white;'
-                        return styles
-                    
-                    st.dataframe(
-                        display_data.style.apply(highlight_selected_col_missing, axis=1),
-                        use_container_width=True,
-                        height=400
-                    )
-                
-                # Missing handling options - PER COLUMN
-                st.markdown("---")
-                st.markdown("##### ⚙️ Cấu Hình Xử Lý Từng Cột")
-                
-                # Select column to configure
-                selected_missing_col = st.selectbox(
-                    "Chọn cột để xử lý:",
-                    missing_data.index.tolist(),
-                    key="selected_missing_col"
-                )
-                
-                # Show column info
-                col_type = data[selected_missing_col].dtype
-                missing_count = missing_data[selected_missing_col]
-                missing_pct = (missing_count / len(data) * 100)
-                
-                info_col1, info_col2, info_col3 = st.columns(3)
-                with info_col1:
-                    st.metric("Kiểu dữ liệu", str(col_type))
-                with info_col2:
-                    st.metric("Số missing", f"{missing_count}")
-                with info_col3:
-                    st.metric("Tỷ lệ missing", f"{missing_pct:.2f}%")
-                
-                # Method selection based on data type
-                if pd.api.types.is_numeric_dtype(data[selected_missing_col]):
-                    method_options = [
-                        "Mean Imputation",
-                        "Median Imputation",
-                        "Mode Imputation",
-                        "Forward Fill",
-                        "Backward Fill",
-                        "Interpolation",
-                        "Constant Value",
-                        "Drop Rows"
-                    ]
-                else:
-                    method_options = [
-                        "Mode Imputation",
-                        "Forward Fill",
-                        "Backward Fill",
-                        "Constant Value",
-                        "Drop Rows"
-                    ]
-                
-                method_col1, method_col2 = st.columns([2, 1])
-                with method_col1:
-                    selected_method = st.selectbox(
-                        "Phương pháp xử lý:",
-                        method_options,
-                        key=f"method_{selected_missing_col}"
-                    )
-                
-                with method_col2:
-                    if selected_method == "Constant Value":
-                        constant_val = st.text_input(
-                            "Giá trị:",
-                            value="0" if pd.api.types.is_numeric_dtype(data[selected_missing_col]) else "Unknown",
-                            key=f"const_{selected_missing_col}"
-                        )
-                
-                # Initialize session state for missing config
-                if 'missing_config' not in st.session_state:
-                    st.session_state.missing_config = {}
-                
-                # Add/Update configuration
-                config_col1, config_col2 = st.columns(2)
-                with config_col1:
-                    if st.button("➕ Thêm/Cập Nhật Cấu Hình", key=f"add_config_{selected_missing_col}", use_container_width=True):
-                        config = {
-                            'method': selected_method,
-                            'missing_count': missing_count,
-                            'missing_pct': missing_pct
-                        }
-                        if selected_method == "Constant Value":
-                            config['constant'] = constant_val
-                        
-                        st.session_state.missing_config[selected_missing_col] = config
-                        st.success(f"✅ Đã thêm cấu hình cho {selected_missing_col}")
-                
-                with config_col2:
-                    if selected_missing_col in st.session_state.missing_config:
-                        if st.button("🗑️ Xóa Cấu Hình", key=f"remove_config_{selected_missing_col}", use_container_width=True):
-                            del st.session_state.missing_config[selected_missing_col]
-                            st.success(f"✅ Đã xóa cấu hình cho {selected_missing_col}")
-                            st.rerun()
-                
-                # Show current configuration
-                if st.session_state.missing_config:
-                    st.markdown("---")
-                    st.markdown("##### 📝 Cấu Hình Hiện Tại")
-                    
-                    config_df = pd.DataFrame([
-                        {
-                            'Cột': col,
-                            'Phương pháp': cfg['method'],
-                            'Missing': f"{cfg['missing_count']} ({cfg['missing_pct']:.1f}%)",
-                            'Giá trị': cfg.get('constant', '-')
-                        }
-                        for col, cfg in st.session_state.missing_config.items()
-                    ])
-                    
-                    st.dataframe(config_df, use_container_width=True, hide_index=True)
-                    
-                    # Apply all configurations
-                    st.markdown("---")
-                    if st.button("� Áp Dụng Tất Cả Cấu Hình", type="primary", use_container_width=True, key="apply_all_missing"):
-                        with st.spinner("Đang xử lý giá trị thiếu..."):
-                            processed_data = data.copy()
-                            
-                            for col, cfg in st.session_state.missing_config.items():
-                                method = cfg['method']
-                                
-                                if method == "Mean Imputation":
-                                    processed_data[col].fillna(processed_data[col].mean(), inplace=True)
-                                elif method == "Median Imputation":
-                                    processed_data[col].fillna(processed_data[col].median(), inplace=True)
-                                elif method == "Mode Imputation":
-                                    processed_data[col].fillna(processed_data[col].mode()[0] if len(processed_data[col].mode()) > 0 else 0, inplace=True)
-                                elif method == "Forward Fill":
-                                    processed_data[col].fillna(method='ffill', inplace=True)
-                                elif method == "Backward Fill":
-                                    processed_data[col].fillna(method='bfill', inplace=True)
-                                elif method == "Interpolation":
-                                    processed_data[col] = processed_data[col].interpolate()
-                                elif method == "Constant Value":
-                                    fill_val = cfg['constant']
-                                    if pd.api.types.is_numeric_dtype(processed_data[col]):
-                                        fill_val = float(fill_val) if '.' in str(fill_val) else int(fill_val)
-                                    processed_data[col].fillna(fill_val, inplace=True)
-                                elif method == "Drop Rows":
-                                    processed_data = processed_data[processed_data[col].notna()]
-                            
-                            # Update session state
-                            st.session_state.processed_data = processed_data
-                            
-                            # Show results
-                            new_missing = processed_data.isnull().sum().sum()
-                            st.success(f"✅ Hoàn thành! Còn {new_missing} giá trị thiếu. Dataset: {len(processed_data)} dòng")
-                            
-                            # KEEP config instead of clearing - user can manually clear if needed
-                            # st.session_state.missing_config = {}  # REMOVED - keep config
-                            
-                            st.info("💡 Cấu hình đã được giữ lại. Bạn có thể áp dụng lại hoặc xóa bằng nút 'Xóa Tất Cả Cấu Hình'")
-                            # st.rerun()  # REMOVED - no need to rerun, keep UI stable
-                else:
-                    st.info("💡 Chưa có cấu hình nào. Hãy chọn cột và phương pháp xử lý ở trên.")
             
             else:
                 st.success("✅ Không có giá trị thiếu trong dataset")
         
         with col2:
-            st.markdown("#### 📊 Gợi Ý & Thống Kê")
+            st.markdown("##### 📊 Gợi Ý & Thống Kê")
             
             # Show processing tips
             st.markdown("""
@@ -360,20 +159,20 @@ def render():
             st.markdown("---")
             
             # Show missing patterns if data has missing
-            missing_data = data.isnull().sum()
-            missing_data = missing_data[missing_data > 0]
+            missing_data_temp = data.isnull().sum()
+            missing_data_temp = missing_data_temp[missing_data_temp > 0]
             
-            if len(missing_data) > 0:
+            if len(missing_data_temp) > 0:
                 st.markdown("##### 📈 Phân Tích Mẫu Thiếu")
                 
                 # Calculate missing percentage by column
-                missing_pct = (missing_data / len(data) * 100).sort_values(ascending=False)
+                missing_pct_chart = (missing_data_temp / len(data) * 100).sort_values(ascending=False)
                 
                 # Create simple bar chart
                 import plotly.express as px
                 fig = px.bar(
-                    x=missing_pct.values,
-                    y=missing_pct.index,
+                    x=missing_pct_chart.values,
+                    y=missing_pct_chart.index,
                     orientation='h',
                     labels={'x': 'Tỷ lệ (%)', 'y': 'Cột'},
                     title="Tỷ lệ dữ liệu thiếu theo cột"
@@ -386,16 +185,230 @@ def render():
                 )
                 fig.update_traces(marker_color='#ff6b6b')
                 st.plotly_chart(fig, use_container_width=True)
-                
-                # Quick stats
-                st.markdown("##### 📊 Thống Kê Nhanh")
-                metric_col1, metric_col2 = st.columns(2)
-                with metric_col1:
-                    st.metric("Cột thiếu nhiều nhất", missing_pct.index[0] if len(missing_pct) > 0 else "N/A")
-                with metric_col2:
-                    st.metric("Tỷ lệ", f"{missing_pct.values[0]:.1f}%" if len(missing_pct) > 0 else "0%")
             else:
                 st.success("✨ Dữ liệu hoàn chỉnh, không có giá trị thiếu!")
+        
+        # Show rows with missing data section (moved outside columns)
+        if len(missing_data) > 0:
+            st.markdown("---")
+            st.markdown("##### 📋 Xem Bản Ghi Có Dữ Liệu Thiếu")
+            
+            # Get rows with any missing values
+            rows_with_missing = data[data.isnull().any(axis=1)]
+            
+            col_preview1, col_preview2 = st.columns([3, 2])
+            with col_preview1:
+                st.metric("Số dòng có missing", len(rows_with_missing), 
+                         f"{len(rows_with_missing)/len(data)*100:.1f}% tổng số")
+            with col_preview2:
+                show_missing_rows = st.checkbox("Hiển thị các dòng", value=True, key="show_missing_rows")
+            
+            if show_missing_rows:
+                # Filter options - select column to prioritize
+                selected_col_filter = st.selectbox(
+                    "Ưu tiên hiển thị cột thiếu:",
+                    ["Tất cả"] + list(missing_data.index),
+                    key="missing_col_filter",
+                    help="Chọn cột để ưu tiên sắp xếp các dòng thiếu dữ liệu ở cột đó lên trên. Tất cả các dòng sẽ được hiển thị."
+                )
+                
+                # Sort data to prioritize rows with missing data in selected column
+                if selected_col_filter != "Tất cả":
+                    # Create a priority column: 1 if selected column is missing, 0 otherwise
+                    rows_display = rows_with_missing.copy()
+                    rows_display['_priority'] = rows_display[selected_col_filter].isnull().astype(int)
+                    # Sort by priority (missing in selected column first), then by index
+                    rows_display = rows_display.sort_values('_priority', ascending=False)
+                    # Drop priority column - SHOW ALL ROWS
+                    display_data = rows_display.drop('_priority', axis=1)
+                    
+                    # Show info about filtering
+                    missing_in_selected = rows_with_missing[selected_col_filter].isnull().sum()
+                    st.info(f"🎯 Ưu tiên: {missing_in_selected} dòng thiếu dữ liệu ở `{selected_col_filter}` được sắp xếp lên trên. Hiển thị tất cả {len(display_data):,} dòng.")
+                else:
+                    # SHOW ALL rows with missing data
+                    display_data = rows_with_missing
+                
+                # Highlight missing values with special color for selected column
+                def highlight_missing(val):
+                    return 'background-color: #ff6b6b; color: white;' if pd.isnull(val) else ''
+                
+                def highlight_selected_col_missing(row):
+                    # Special highlight for selected column if missing
+                    styles = [''] * len(row)
+                    for idx, (col_name, val) in enumerate(row.items()):
+                        if pd.isnull(val):
+                            if selected_col_filter != "Tất cả" and col_name == selected_col_filter:
+                                # Brighter red for selected column
+                                styles[idx] = 'background-color: #ff3333; color: white; font-weight: bold; border: 2px solid #ff0000;'
+                            else:
+                                # Normal red for other missing values
+                                styles[idx] = 'background-color: #ff6b6b; color: white;'
+                    return styles
+                
+                st.dataframe(
+                    display_data.style.apply(highlight_selected_col_missing, axis=1),
+                    use_container_width=True,
+                    height=400
+                )
+            
+            st.markdown("---")
+            st.markdown("##### ⚙️ Cấu Hình Xử Lý Từng Cột")
+            
+            # Select column to configure
+            selected_missing_col = st.selectbox(
+                "Chọn cột để xử lý:",
+                missing_data.index.tolist(),
+                key="selected_missing_col"
+            )
+            
+            # Show column info - simplified without nested columns
+            col_type = data[selected_missing_col].dtype
+            missing_count = missing_data[selected_missing_col]
+            missing_pct = (missing_count / len(data) * 100)
+            
+            st.markdown(f"""
+            **Kiểu dữ liệu:** `{col_type}` | **Số missing:** `{missing_count}` | **Tỷ lệ:** `{missing_pct:.1f}%`
+            """)
+            
+            # Method selection based on data type
+            if pd.api.types.is_numeric_dtype(data[selected_missing_col]):
+                method_options = [
+                    "Mean Imputation",
+                    "Median Imputation",
+                    "Mode Imputation",
+                    "Forward Fill",
+                    "Backward Fill",
+                    "Interpolation",
+                    "Constant Value",
+                    "Drop Rows"
+                ]
+            else:
+                method_options = [
+                    "Mode Imputation",
+                    "Forward Fill",
+                    "Backward Fill",
+                    "Constant Value",
+                    "Drop Rows"
+                ]
+            
+            selected_method = st.selectbox(
+                "Phương pháp xử lý:",
+                method_options,
+                key=f"method_{selected_missing_col}"
+            )
+            
+            # Constant value input if needed
+            constant_val = None
+            if selected_method == "Constant Value":
+                constant_val = st.text_input(
+                    "Giá trị:",
+                    value="0" if pd.api.types.is_numeric_dtype(data[selected_missing_col]) else "Unknown",
+                    key=f"const_{selected_missing_col}"
+                )
+            
+            # Initialize session state for missing config
+            if 'missing_config' not in st.session_state:
+                st.session_state.missing_config = {}
+            
+            # Process button
+            if st.button("✅ Xử Lý Ngay", key=f"add_config_{selected_missing_col}", use_container_width=True, type="primary"):
+                with st.spinner(f"Đang xử lý cột `{selected_missing_col}`..."):
+                    # BACKUP current state before processing
+                    st.session_state.column_backups[selected_missing_col] = {
+                        'data': st.session_state.data[selected_missing_col].copy(),
+                        'full_data': st.session_state.data.copy()
+                    }
+                    
+                    # Apply the method immediately to session data
+                    if selected_method == "Mean Imputation":
+                        st.session_state.data[selected_missing_col].fillna(
+                            st.session_state.data[selected_missing_col].mean(), inplace=True)
+                    elif selected_method == "Median Imputation":
+                        st.session_state.data[selected_missing_col].fillna(
+                            st.session_state.data[selected_missing_col].median(), inplace=True)
+                    elif selected_method == "Mode Imputation":
+                        mode_val = st.session_state.data[selected_missing_col].mode()
+                        fill_val = mode_val[0] if len(mode_val) > 0 else 0
+                        st.session_state.data[selected_missing_col].fillna(fill_val, inplace=True)
+                    elif selected_method == "Forward Fill":
+                        st.session_state.data[selected_missing_col].fillna(method='ffill', inplace=True)
+                    elif selected_method == "Backward Fill":
+                        st.session_state.data[selected_missing_col].fillna(method='bfill', inplace=True)
+                    elif selected_method == "Interpolation":
+                        st.session_state.data[selected_missing_col] = st.session_state.data[selected_missing_col].interpolate()
+                    elif selected_method == "Constant Value":
+                        fill_val = constant_val
+                        if pd.api.types.is_numeric_dtype(st.session_state.data[selected_missing_col]):
+                            fill_val = float(fill_val) if '.' in str(fill_val) else int(fill_val)
+                        st.session_state.data[selected_missing_col].fillna(fill_val, inplace=True)
+                    elif selected_method == "Drop Rows":
+                        st.session_state.data = st.session_state.data[st.session_state.data[selected_missing_col].notna()]
+                    
+                    # Save to config history for tracking
+                    st.session_state.missing_config[selected_missing_col] = {
+                        'method': selected_method,
+                        'original_missing': missing_count,
+                        'processed': True,
+                        'can_undo': True
+                    }
+                    if selected_method == "Constant Value":
+                        st.session_state.missing_config[selected_missing_col]['constant'] = constant_val
+                    
+                    st.success(f"✅ Đã xử lý cột `{selected_missing_col}` bằng {selected_method}")
+                    st.rerun()  # Refresh to update the display
+            
+            # Undo button
+            if selected_missing_col in st.session_state.missing_config:
+                if st.button("🔄 Hoàn Tác", key=f"remove_config_{selected_missing_col}", use_container_width=True):
+                    # Restore from backup
+                    if selected_missing_col in st.session_state.column_backups:
+                        backup = st.session_state.column_backups[selected_missing_col]
+                        
+                        # Check if it was "Drop Rows" - need full data restore
+                        config = st.session_state.missing_config[selected_missing_col]
+                        if config['method'] == "Drop Rows":
+                            st.session_state.data = backup['full_data'].copy()
+                        else:
+                            st.session_state.data[selected_missing_col] = backup['data'].copy()
+                        
+                        # Remove from config and backup
+                        del st.session_state.missing_config[selected_missing_col]
+                        del st.session_state.column_backups[selected_missing_col]
+                        
+                        st.success(f"✅ Đã hoàn tác xử lý cho cột `{selected_missing_col}`")
+                        st.rerun()
+                    else:
+                        st.error("⚠️ Không tìm thấy backup cho cột này")
+                        del st.session_state.missing_config[selected_missing_col]
+                        st.rerun()
+                
+                
+                # Show current configuration (Processing History)
+                if st.session_state.missing_config:
+                    st.markdown("---")
+                    st.markdown("##### � Lịch Sử Xử Lý")
+                    
+                    config_df = pd.DataFrame([
+                        {
+                            'Cột': col,
+                            'Phương pháp': cfg['method'],
+                            'Missing ban đầu': f"{cfg['original_missing']}",
+                            'Giá trị điền': cfg.get('constant', '-'),
+                            'Trạng thái': '✅ Đã xử lý'
+                        }
+                        for col, cfg in st.session_state.missing_config.items()
+                    ])
+                    
+                    st.dataframe(config_df, use_container_width=True, hide_index=True)
+                    
+                    # Clear all history button
+                    if st.button("🗑️ Xóa Toàn Bộ Lịch Sử", key="clear_history", use_container_width=True):
+                        st.session_state.missing_config = {}
+                        st.success("✅ Đã xóa lịch sử xử lý")
+                        st.rerun()
+                else:
+                    st.info("💡 Chưa xử lý cột nào. Chọn cột và phương pháp ở trên, sau đó bấm 'Xử Lý Ngay'.")
         
         # Section 2: Mã Hóa Biến Phân Loại (Moved to separate section)
         st.markdown("---")
