@@ -88,6 +88,26 @@ with st.sidebar:
             st.success("● Model trained")
         else:
             st.info("○ No model trained")
+        
+        # Show configurations count
+        total_configs = (
+            len(st.session_state.get('missing_config', {})) +
+            len(st.session_state.get('encoding_config', {})) +
+            len(st.session_state.get('binning_config', {}))
+        )
+        if total_configs > 0:
+            st.success(f"● {total_configs} cấu hình đã lưu")
+            
+            # Show breakdown
+            if len(st.session_state.get('missing_config', {})) > 0:
+                st.caption(f"  - Missing: {len(st.session_state.missing_config)}")
+            if len(st.session_state.get('encoding_config', {})) > 0:
+                st.caption(f"  - Encoding: {len(st.session_state.encoding_config)}")
+            if len(st.session_state.get('binning_config', {})) > 0:
+                st.caption(f"  - Binning: {len(st.session_state.binning_config)}")
+        
+        if 'processed_data' in st.session_state and st.session_state.processed_data is not None:
+            st.success(f"● Processed: {len(st.session_state.processed_data)} rows")
     
     st.markdown("---")
     st.caption("© 2025 Credit Scoring System v1.0")
