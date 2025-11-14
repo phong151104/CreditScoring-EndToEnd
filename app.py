@@ -49,18 +49,14 @@ except Exception as e:
 
 # Sidebar navigation
 with st.sidebar:
-    # Logo hoặc title
-    if Path("assets/logo.png").exists():
-        st.image("assets/logo.png", use_container_width=True)
-    else:
-        st.markdown("""
-        <div style='text-align: left; padding: 1rem 0;'>
-            <h2 style='margin: 0; color: #667eea; font-weight: 600;'>
-                <span style='font-size: 1.8rem;'>▣</span> Credit Scoring
-            </h2>
-            <p style='margin: 0.3rem 0 0 0; color: #aaa; font-size: 0.85rem;'>Risk Assessment Platform</p>
-        </div>
-        """, unsafe_allow_html=True)
+    st.markdown("""
+    <div style='text-align: left; padding: 1rem 0;'>
+        <h2 style='margin: 0; color: #667eea; font-weight: 600;'>
+            <span style='font-size: 1.8rem;'>▣</span> Credit Scoring
+        </h2>
+        <p style='margin: 0.3rem 0 0 0; color: #aaa; font-size: 0.85rem;'>Risk Assessment Platform</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     st.markdown("---")
     
@@ -118,32 +114,32 @@ print(f"\n>>> Routing to page: {page}", file=sys.stderr)
 try:
     if page == "◉ Dashboard":
         print("Loading home page...", file=sys.stderr)
-        from pages import home
+        from views import home
         home.render()
         print("✓ Home page rendered", file=sys.stderr)
     elif page == "↑ Data Upload & Analysis":
         print("Loading upload_eda page...", file=sys.stderr)
-        from pages import upload_eda
+        from views import upload_eda
         upload_eda.render()
         print("✓ Upload page rendered", file=sys.stderr)
     elif page == "⚡ Feature Engineering":
         print("Loading feature_engineering page...", file=sys.stderr)
-        from pages import feature_engineering
+        from views import feature_engineering
         feature_engineering.render()
         print("✓ Feature page rendered", file=sys.stderr)
     elif page == "◈ Model Training":
         print("Loading model_training page...", file=sys.stderr)
-        from pages import model_training
+        from views import model_training
         model_training.render()
         print("✓ Training page rendered", file=sys.stderr)
     elif page == "◐ Model Explanation":
         print("Loading shap_explanation page...", file=sys.stderr)
-        from pages import shap_explanation
+        from views import shap_explanation
         shap_explanation.render()
         print("✓ SHAP page rendered", file=sys.stderr)
     elif page == "◎ Prediction & Advisory":
         print("Loading prediction page...", file=sys.stderr)
-        from pages import prediction
+        from views import prediction
         prediction.render()
         print("✓ Prediction page rendered", file=sys.stderr)
 except Exception as e:

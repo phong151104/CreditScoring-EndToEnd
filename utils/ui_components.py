@@ -8,6 +8,17 @@ def load_custom_css():
     """Load custom CSS cho ứng dụng"""
     st.markdown("""
     <style>
+        /* Hide Streamlit default menu and header */
+        #MainMenu {visibility: hidden !important;}
+        header {visibility: hidden !important;}
+        footer {visibility: hidden !important;}
+        
+        /* Hide the top menu bar completely */
+        section[data-testid="stSidebarNav"] {display: none !important;}
+        
+        /* Hide hamburger menu */
+        button[kind="header"] {display: none !important;}
+        
         /* Main container */
         .main {
             padding: 2rem;
