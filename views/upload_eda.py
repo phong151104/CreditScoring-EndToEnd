@@ -810,6 +810,76 @@ def render():
                     with st.container():
                         st.markdown(st.session_state.ai_analysis)
                     
+                    # Auto-generate preprocessing suggestions (but don't display here)
+                    # Check if we already have suggestions
+                    if 'preprocessing_suggestions' not in st.session_state:
+                        # Auto-generate on first time
+                        with st.spinner("🤖 Đang tạo gợi ý tiền xử lý từ AI..."):
+                            try:
+                                # Call LLM to generate preprocessing suggestions
+                                provider = LLMConfig.DEFAULT_PROVIDER
+                                api_key = LLMConfig.get_api_key() if is_llm_configured else None
+                                
+                                # Create prompt for preprocessing suggestions
+                                suggestions_prompt = f"""Dựa trên kết quả phân tích EDA sau đây, hãy tạo một danh sách GỢI Ý NGẮN GỌN (5-7 gạch đầu dòng) 
+về các bước TIỀN XỬ LÝ CẦN LÀM theo thứ tự ưu tiên.
+
+KẾT QUẢ PHÂN TÍCH EDA:
+{st.session_state.ai_analysis}
+
+YÊU CẦU:
+1. Liệt kê các bước tiền xử lý THEO THỨ TỰ ƯU TIÊN (làm trước - làm sau)
+2. Mỗi bước NÊN CỤ THỂ, đề cập đến tên cột và phương pháp xử lý
+3. Chỉ đưa ra 5-7 bước QUAN TRỌNG NHẤT
+4. Format: đánh số thứ tự với emoji phù hợp
+5. Ngôn ngữ: Tiếng Việt chuyên nghiệp
+
+VÍ DỤ FORMAT:
+**📋 Các Bước Tiền Xử Lý Đề Xuất:**
+
+1. **Xử lý Missing Values** - Áp dụng Median Imputation cho `income_monthly`, `loan_amount` (có outliers)
+2. **Xử lý Outliers** - Winsorization cho `credit_utilization`, `dti` (tỷ lệ outliers >15%)
+3. **Mã hóa biến phân loại** - One-Hot Encoding cho `region`, `industry` (cardinality thấp)
+4. **Chuẩn hóa dữ liệu** - StandardScaler cho tất cả biến số sau khi xử lý missing
+5. **Kiểm tra lại Missing** - Đảm bảo không còn missing values trước khi training
+
+QUAN TRỌNG: CHỈ trả về danh sách các bước, KHÔNG giải thích thêm!"""
+
+                                # Call LLM
+                                if is_llm_configured and api_key:
+                                    if provider == "google":
+                                        import google.generativeai as genai
+                                        genai.configure(api_key=api_key)
+                                        model = genai.GenerativeModel(LLMConfig.get_model(provider))
+                                        response = model.generate_content(suggestions_prompt)
+                                        suggestions_text = response.text.strip()
+                                    else:
+                                        # Fallback for other providers or no API
+                                        suggestions_text = """**📋 Các Bước Tiền Xử Lý Đề Xuất:**
+
+1. **Xử lý Missing Values** - Xác định và xử lý các cột có dữ liệu thiếu
+2. **Xử lý Outliers** - Kiểm tra và xử lý các giá trị ngoại lệ
+3. **Mã hóa biến phân loại** - Chuyển đổi biến categorical thành số
+4. **Chuẩn hóa dữ liệu** - Scale các biến số về cùng khoảng giá trị
+5. **Feature Engineering** - Tạo thêm features mới nếu cần thiết"""
+                                else:
+                                    suggestions_text = """**📋 Các Bước Tiền Xử Lý Đề Xuất:**
+
+1. **Xử lý Missing Values** - Xác định và xử lý các cột có dữ liệu thiếu
+2. **Xử lý Outliers** - Kiểm tra và xử lý các giá trị ngoại lệ
+3. **Mã hóa biến phân loại** - Chuyển đổi biến categorical thành số
+4. **Chuẩn hóa dữ liệu** - Scale các biến số về cùng khoảng giá trị
+5. **Feature Engineering** - Tạo thêm features mới nếu cần thiết"""
+                                
+                                # Save to session state (silently, no notification)
+                                st.session_state.preprocessing_suggestions = suggestions_text
+                                st.session_state.eda_analysis_result = st.session_state.ai_analysis
+                                st.session_state.llm_provider = provider
+                                
+                            except Exception as e:
+                                # Save error message but don't show notification
+                                st.session_state.preprocessing_suggestions = f"⚠️ Không thể tạo gợi ý tự động: {str(e)}\n\nVui lòng xem phân tích EDA ở trên để tự đưa ra các bước tiền xử lý."
+                    
                     # Download option
                     st.markdown("---")
                     st.download_button(
@@ -1214,6 +1284,87 @@ def render():
                     # Display in a nice container
                     with st.container():
                         st.markdown(st.session_state.ai_analysis)
+                    
+                    # Auto-generate preprocessing suggestions after analysis
+                    st.markdown("---")
+                    st.markdown("### 💡 Gợi Ý Tiền Xử Lý")
+                    
+                    # Check if we already have suggestions
+                    if 'preprocessing_suggestions' not in st.session_state:
+                        # Auto-generate on first time
+                        with st.spinner("🤖 Đang tạo gợi ý tiền xử lý từ AI..."):
+                            try:
+                                # Call LLM to generate preprocessing suggestions
+                                provider = LLMConfig.DEFAULT_PROVIDER
+                                api_key = LLMConfig.get_api_key() if is_llm_configured else None
+                                
+                                # Create prompt for preprocessing suggestions
+                                suggestions_prompt = f"""Dựa trên kết quả phân tích EDA sau đây, hãy tạo một danh sách GỢI Ý NGẮN GỌN (5-7 gạch đầu dòng) 
+về các bước TIỀN XỬ LÝ CẦN LÀM theo thứ tự ưu tiên.
+
+KẾT QUẢ PHÂN TÍCH EDA:
+{st.session_state.ai_analysis}
+
+YÊU CẦU:
+1. Liệt kê các bước tiền xử lý THEO THỨ TỰ ƯU TIÊN (làm trước - làm sau)
+2. Mỗi bước NÊN CỤ THỂ, đề cập đến tên cột và phương pháp xử lý
+3. Chỉ đưa ra 5-7 bước QUAN TRỌNG NHẤT
+4. Format: đánh số thứ tự với emoji phù hợp
+5. Ngôn ngữ: Tiếng Việt chuyên nghiệp
+
+VÍ DỤ FORMAT:
+**📋 Các Bước Tiền Xử Lý Đề Xuất:**
+
+1. **Xử lý Missing Values** - Áp dụng Median Imputation cho `income_monthly`, `loan_amount` (có outliers)
+2. **Xử lý Outliers** - Winsorization cho `credit_utilization`, `dti` (tỷ lệ outliers >15%)
+3. **Mã hóa biến phân loại** - One-Hot Encoding cho `region`, `industry` (cardinality thấp)
+4. **Chuẩn hóa dữ liệu** - StandardScaler cho tất cả biến số sau khi xử lý missing
+5. **Kiểm tra lại Missing** - Đảm bảo không còn missing values trước khi training
+
+QUAN TRỌNG: CHỈ trả về danh sách các bước, KHÔNG giải thích thêm!"""
+
+                                # Call LLM
+                                if is_llm_configured and api_key:
+                                    if provider == "google":
+                                        import google.generativeai as genai
+                                        genai.configure(api_key=api_key)
+                                        model = genai.GenerativeModel(LLMConfig.get_model(provider))
+                                        response = model.generate_content(suggestions_prompt)
+                                        suggestions_text = response.text.strip()
+                                    else:
+                                        # Fallback for other providers or no API
+                                        suggestions_text = """**📋 Các Bước Tiền Xử Lý Đề Xuất:**
+
+1. **Xử lý Missing Values** - Xác định và xử lý các cột có dữ liệu thiếu
+2. **Xử lý Outliers** - Kiểm tra và xử lý các giá trị ngoại lệ
+3. **Mã hóa biến phân loại** - Chuyển đổi biến categorical thành số
+4. **Chuẩn hóa dữ liệu** - Scale các biến số về cùng khoảng giá trị
+5. **Feature Engineering** - Tạo thêm features mới nếu cần thiết"""
+                                else:
+                                    suggestions_text = """**📋 Các Bước Tiền Xử Lý Đề Xuất:**
+
+1. **Xử lý Missing Values** - Xác định và xử lý các cột có dữ liệu thiếu
+2. **Xử lý Outliers** - Kiểm tra và xử lý các giá trị ngoại lệ
+3. **Mã hóa biến phân loại** - Chuyển đổi biến categorical thành số
+4. **Chuẩn hóa dữ liệu** - Scale các biến số về cùng khoảng giá trị
+5. **Feature Engineering** - Tạo thêm features mới nếu cần thiết"""
+                                
+                                # Save to session state
+                                st.session_state.preprocessing_suggestions = suggestions_text
+                                st.session_state.eda_analysis_result = st.session_state.ai_analysis
+                                st.session_state.llm_provider = provider
+                                
+                            except Exception as e:
+                                st.session_state.preprocessing_suggestions = f"⚠️ Không thể tạo gợi ý tự động: {str(e)}\n\nVui lòng xem phân tích EDA ở trên để tự đưa ra các bước tiền xử lý."
+                    
+                    # Display suggestions
+                    if 'preprocessing_suggestions' in st.session_state:
+                        st.markdown(st.session_state.preprocessing_suggestions)
+                        
+                        # Button to regenerate
+                        if st.button("🔄 Tạo Lại Gợi Ý", key="regenerate_preprocessing_suggestions_cached"):
+                            del st.session_state.preprocessing_suggestions
+                            st.rerun()
                     
                     # Download option
                     st.markdown("---")

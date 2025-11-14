@@ -442,19 +442,19 @@ Hãy trả lời bằng tiếng Việt, chuyên nghiệp nhưng dễ hiểu."""
         # Call LLM based on provider
         try:
             if self.provider == "google":
-                # Google Gemini with timeout
+                # Google Gemini with increased limits
                 import google.generativeai as genai
                 
-                # Configure timeout and safety settings
+                # Configure with higher limits to avoid truncation
                 generation_config = genai.GenerationConfig(
-                    max_output_tokens=8000,
+                    max_output_tokens=16000,  # Increased from 8000 to 16000
                     temperature=0.7,
                 )
                 
                 # Add timeout wrapper
                 import time
                 start_time = time.time()
-                timeout = 200  # 200 seconds timeout for complex analysis
+                timeout = 300  # Increased to 300 seconds (5 minutes) for complex analysis
                 
                 response = self.client.generate_content(
                     prompt,
@@ -468,7 +468,7 @@ Hãy trả lời bằng tiếng Việt, chuyên nghiệp nhưng dễ hiểu."""
                 return response.text
             
             elif self.provider == "openai":
-                # OpenAI GPT
+                # OpenAI GPT with increased max_tokens
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=[
@@ -476,15 +476,15 @@ Hãy trả lời bằng tiếng Việt, chuyên nghiệp nhưng dễ hiểu."""
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.7,
-                    max_tokens=8000
+                    max_tokens=16000  # Increased from 8000
                 )
                 return response.choices[0].message.content
             
             elif self.provider == "anthropic":
-                # Anthropic Claude
+                # Anthropic Claude with increased max_tokens
                 response = self.client.messages.create(
                     model=self.model,
-                    max_tokens=8000,
+                    max_tokens=16000,  # Increased from 8000
                     temperature=0.7,
                     messages=[
                         {"role": "user", "content": prompt}

@@ -117,7 +117,7 @@ def render():
             
             st.markdown("---")
         
-        col1, col2 = st.columns(2)
+        col1, col2 = st.columns([3, 2])
         
         with col1:
             st.markdown("#### 1️⃣ Xử Lý Giá Trị Thiếu")
@@ -138,25 +138,6 @@ def render():
             
             else:
                 st.success("✅ Không có giá trị thiếu trong dataset")
-        
-        with col2:
-            st.markdown("##### 📊 Gợi Ý & Thống Kê")
-            
-            # Show processing tips
-            st.markdown("""
-            <div style="background-color: #262730; padding: 1.2rem; border-radius: 10px; border-left: 4px solid #667eea;">
-                <h4 style="margin-top: 0; color: #667eea;">💡 Gợi Ý Xử Lý</h4>
-                <ul style="font-size: 0.9rem; margin-bottom: 0;">
-                    <li><strong>Mean</strong>: Tốt cho dữ liệu phân phối chuẩn</li>
-                    <li><strong>Median</strong>: Tốt khi có outliers</li>
-                    <li><strong>Mode</strong>: Cho biến phân loại</li>
-                    <li><strong>Forward/Backward Fill</strong>: Cho time series</li>
-                    <li><strong>Interpolation</strong>: Cho dữ liệu liên tục</li>
-                </ul>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            st.markdown("---")
             
             # Show missing patterns if data has missing
             missing_data_temp = data.isnull().sum()
@@ -187,6 +168,34 @@ def render():
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.success("✨ Dữ liệu hoàn chỉnh, không có giá trị thiếu!")
+        
+        with col2:
+            st.markdown("##### 📊 Gợi Ý & Thống Kê")
+            
+            suggestions = st.session_state.get("preprocessing_suggestions")
+            if suggestions:
+                st.markdown("""
+                <div style="background-color: #262730; padding: 1.2rem; border-radius: 10px; border-left: 4px solid #667eea;">
+                    <h4 style="margin-top: 0; color: #667eea; font-size: 1.1rem;">💡 Gợi Ý Xử Lý (AI)</h4>
+                """, unsafe_allow_html=True)
+                st.markdown(suggestions)
+                st.markdown("</div>", unsafe_allow_html=True)
+            else:
+                # Show default processing tips
+                st.markdown("""
+                <div style="background-color: #262730; padding: 1.2rem; border-radius: 10px; border-left: 4px solid #667eea;">
+                    <h4 style="margin-top: 0; color: #667eea; font-size: 1.1rem;">💡 Gợi Ý Xử Lý</h4>
+                    <ul style="font-size: 0.9rem; margin-bottom: 0;">
+                        <li><strong>Mean</strong>: Tốt cho dữ liệu phân phối chuẩn</li>
+                        <li><strong>Median</strong>: Tốt khi có outliers</li>
+                        <li><strong>Mode</strong>: Cho biến phân loại</li>
+                        <li><strong>Forward/Backward Fill</strong>: Cho time series</li>
+                        <li><strong>Interpolation</strong>: Cho dữ liệu liên tục</li>
+                    </ul>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        st.markdown("---")
         
         # Show rows with missing data section (moved outside columns)
         if len(missing_data) > 0:
