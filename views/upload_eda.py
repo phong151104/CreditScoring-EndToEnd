@@ -821,29 +821,45 @@ def render():
                                 api_key = LLMConfig.get_api_key() if is_llm_configured else None
                                 
                                 # Create prompt for preprocessing suggestions
-                                suggestions_prompt = f"""Dựa trên kết quả phân tích EDA sau đây, hãy tạo một danh sách GỢI Ý NGẮN GỌN (5-7 gạch đầu dòng) 
-về các bước TIỀN XỬ LÝ CẦN LÀM theo thứ tự ưu tiên.
+                                suggestions_prompt = f"""Dựa trên kết quả phân tích EDA sau đây, hãy tạo một roadmap tiền xử lý dữ liệu theo ĐÚNG 4 BƯỚC sau:
 
 KẾT QUẢ PHÂN TÍCH EDA:
 {st.session_state.ai_analysis}
 
 YÊU CẦU:
-1. Liệt kê các bước tiền xử lý THEO THỨ TỰ ƯU TIÊN (làm trước - làm sau)
-2. Mỗi bước NÊN CỤ THỂ, đề cập đến tên cột và phương pháp xử lý
-3. Chỉ đưa ra 5-7 bước QUAN TRỌNG NHẤT
-4. Format: đánh số thứ tự với emoji phù hợp
-5. Ngôn ngữ: Tiếng Việt chuyên nghiệp
+Trả về roadmap tiền xử lý theo ĐÚNG 4 BƯỚC SAU (không được thêm bớt bước):
 
-VÍ DỤ FORMAT:
-**📋 Các Bước Tiền Xử Lý Đề Xuất:**
+**Bước 1: Xử Lý Biến Định Danh & Giá Trị Không Hợp Lệ**
+- Xác định và loại bỏ các cột định danh (ID, customer_id, ...)
+- Phát hiện và xử lý các giá trị không hợp lệ (âm, ngoài phạm vi, ...)
+- Liệt kê CỤ THỂ tên cột cần xử lý
 
-1. **Xử lý Missing Values** - Áp dụng Median Imputation cho `income_monthly`, `loan_amount` (có outliers)
-2. **Xử lý Outliers** - Winsorization cho `credit_utilization`, `dti` (tỷ lệ outliers >15%)
-3. **Mã hóa biến phân loại** - One-Hot Encoding cho `region`, `industry` (cardinality thấp)
-4. **Chuẩn hóa dữ liệu** - StandardScaler cho tất cả biến số sau khi xử lý missing
-5. **Kiểm tra lại Missing** - Đảm bảo không còn missing values trước khi training
+**Bước 2: Xử Lý Giá Trị Thiếu**
+- Xác định các cột có missing values
+- Đề xuất phương pháp xử lý CHO TỪNG CỘT (drop, imputation, ...)
+- Giải thích lý do chọn phương pháp đó
 
-QUAN TRỌNG: CHỈ trả về danh sách các bước, KHÔNG giải thích thêm!"""
+**Bước 3: Xử Lý Outliers & Biến Đổi Phân Phối**
+- Xác định các cột có outliers nghiêm trọng
+- Đề xuất phương pháp xử lý outliers (Winsorization, IQR, Log transform, ...)
+- Đề xuất biến đổi phân phối nếu cần (Log, Box-Cox, ...)
+
+**Bước 4: Mã Hóa Biến Phân Loại**
+- Xác định các biến phân loại cần mã hóa
+- Đề xuất phương pháp mã hóa CHO TỪNG CỘT (One-Hot, Label Encoding, Target Encoding, ...)
+- Giải thích lý do chọn phương pháp đó (dựa vào cardinality, mối quan hệ với target, ...)
+
+FORMAT:
+- Mỗi bước phải có tiêu đề in đậm với emoji
+- Dưới mỗi bước là danh sách gạch đầu dòng CHI TIẾT, CỤ THỂ
+- Đề cập TÊN CỘT và PHƯƠNG PHÁP cụ thể
+- Ngôn ngữ: Tiếng Việt chuyên nghiệp
+
+QUAN TRỌNG: 
+- PHẢI trả về ĐÚNG 4 BƯỚC theo cấu trúc trên
+- Mỗi bước phải CỤ THỂ, đề cập tên cột và phương pháp
+- KHÔNG thêm bước khác, KHÔNG tóm tắt chung chung
+- CHỈ trả về 4 bước, KHÔNG giải thích thêm!"""
 
                                 # Call LLM
                                 if is_llm_configured and api_key:
@@ -855,21 +871,45 @@ QUAN TRỌNG: CHỈ trả về danh sách các bước, KHÔNG giải thích th�
                                         suggestions_text = response.text.strip()
                                     else:
                                         # Fallback for other providers or no API
-                                        suggestions_text = """**📋 Các Bước Tiền Xử Lý Đề Xuất:**
+                                        suggestions_text = """**📋 Roadmap Tiền Xử Lý Dữ Liệu:**
 
-1. **Xử lý Missing Values** - Xác định và xử lý các cột có dữ liệu thiếu
-2. **Xử lý Outliers** - Kiểm tra và xử lý các giá trị ngoại lệ
-3. **Mã hóa biến phân loại** - Chuyển đổi biến categorical thành số
-4. **Chuẩn hóa dữ liệu** - Scale các biến số về cùng khoảng giá trị
-5. **Feature Engineering** - Tạo thêm features mới nếu cần thiết"""
+**Bước 1: 🔍 Xử Lý Biến Định Danh & Giá Trị Không Hợp Lệ**
+- Xác định và loại bỏ các cột định danh (customer_id, ID, ...)
+- Kiểm tra và xử lý các giá trị không hợp lệ (âm, ngoài phạm vi hợp lý)
+
+**Bước 2: ❓ Xử Lý Giá Trị Thiếu**
+- Xác định các cột có missing values
+- Áp dụng phương pháp phù hợp: Drop, Mean/Median Imputation, hoặc Forward Fill
+
+**Bước 3: ⚠️ Xử Lý Outliers & Biến Đổi Phân Phối**
+- Phát hiện outliers bằng phương pháp IQR hoặc Z-score
+- Áp dụng Winsorization hoặc Log Transform cho các cột có outliers
+- Biến đổi phân phối lệch bằng Log hoặc Box-Cox nếu cần
+
+**Bước 4: 🔤 Mã Hóa Biến Phân Loại**
+- One-Hot Encoding cho biến có cardinality thấp (< 10 categories)
+- Label Encoding cho biến ordinal hoặc binary
+- Target Encoding cho biến có cardinality cao"""
                                 else:
-                                    suggestions_text = """**📋 Các Bước Tiền Xử Lý Đề Xuất:**
+                                    suggestions_text = """**📋 Roadmap Tiền Xử Lý Dữ Liệu:**
 
-1. **Xử lý Missing Values** - Xác định và xử lý các cột có dữ liệu thiếu
-2. **Xử lý Outliers** - Kiểm tra và xử lý các giá trị ngoại lệ
-3. **Mã hóa biến phân loại** - Chuyển đổi biến categorical thành số
-4. **Chuẩn hóa dữ liệu** - Scale các biến số về cùng khoảng giá trị
-5. **Feature Engineering** - Tạo thêm features mới nếu cần thiết"""
+**Bước 1: 🔍 Xử Lý Biến Định Danh & Giá Trị Không Hợp Lệ**
+- Xác định và loại bỏ các cột định danh (customer_id, ID, ...)
+- Kiểm tra và xử lý các giá trị không hợp lệ (âm, ngoài phạm vi hợp lý)
+
+**Bước 2: ❓ Xử Lý Giá Trị Thiếu**
+- Xác định các cột có missing values
+- Áp dụng phương pháp phù hợp: Drop, Mean/Median Imputation, hoặc Forward Fill
+
+**Bước 3: ⚠️ Xử Lý Outliers & Biến Đổi Phân Phối**
+- Phát hiện outliers bằng phương pháp IQR hoặc Z-score
+- Áp dụng Winsorization hoặc Log Transform cho các cột có outliers
+- Biến đổi phân phối lệch bằng Log hoặc Box-Cox nếu cần
+
+**Bước 4: 🔤 Mã Hóa Biến Phân Loại**
+- One-Hot Encoding cho biến có cardinality thấp (< 10 categories)
+- Label Encoding cho biến ordinal hoặc binary
+- Target Encoding cho biến có cardinality cao"""
                                 
                                 # Save to session state (silently, no notification)
                                 st.session_state.preprocessing_suggestions = suggestions_text
@@ -1299,29 +1339,45 @@ QUAN TRỌNG: CHỈ trả về danh sách các bước, KHÔNG giải thích th�
                                 api_key = LLMConfig.get_api_key() if is_llm_configured else None
                                 
                                 # Create prompt for preprocessing suggestions
-                                suggestions_prompt = f"""Dựa trên kết quả phân tích EDA sau đây, hãy tạo một danh sách GỢI Ý NGẮN GỌN (5-7 gạch đầu dòng) 
-về các bước TIỀN XỬ LÝ CẦN LÀM theo thứ tự ưu tiên.
+                                suggestions_prompt = f"""Dựa trên kết quả phân tích EDA sau đây, hãy tạo một roadmap tiền xử lý dữ liệu theo ĐÚNG 4 BƯỚC sau:
 
 KẾT QUẢ PHÂN TÍCH EDA:
 {st.session_state.ai_analysis}
 
 YÊU CẦU:
-1. Liệt kê các bước tiền xử lý THEO THỨ TỰ ƯU TIÊN (làm trước - làm sau)
-2. Mỗi bước NÊN CỤ THỂ, đề cập đến tên cột và phương pháp xử lý
-3. Chỉ đưa ra 5-7 bước QUAN TRỌNG NHẤT
-4. Format: đánh số thứ tự với emoji phù hợp
-5. Ngôn ngữ: Tiếng Việt chuyên nghiệp
+Trả về roadmap tiền xử lý theo ĐÚNG 4 BƯỚC SAU (không được thêm bớt bước):
 
-VÍ DỤ FORMAT:
-**📋 Các Bước Tiền Xử Lý Đề Xuất:**
+**Bước 1: Xử Lý Biến Định Danh & Giá Trị Không Hợp Lệ**
+- Xác định và loại bỏ các cột định danh (ID, customer_id, ...)
+- Phát hiện và xử lý các giá trị không hợp lệ (âm, ngoài phạm vi, ...)
+- Liệt kê CỤ THỂ tên cột cần xử lý
 
-1. **Xử lý Missing Values** - Áp dụng Median Imputation cho `income_monthly`, `loan_amount` (có outliers)
-2. **Xử lý Outliers** - Winsorization cho `credit_utilization`, `dti` (tỷ lệ outliers >15%)
-3. **Mã hóa biến phân loại** - One-Hot Encoding cho `region`, `industry` (cardinality thấp)
-4. **Chuẩn hóa dữ liệu** - StandardScaler cho tất cả biến số sau khi xử lý missing
-5. **Kiểm tra lại Missing** - Đảm bảo không còn missing values trước khi training
+**Bước 2: Xử Lý Giá Trị Thiếu**
+- Xác định các cột có missing values
+- Đề xuất phương pháp xử lý CHO TỪNG CỘT (drop, imputation, ...)
+- Giải thích lý do chọn phương pháp đó
 
-QUAN TRỌNG: CHỈ trả về danh sách các bước, KHÔNG giải thích thêm!"""
+**Bước 3: Xử Lý Outliers & Biến Đổi Phân Phối**
+- Xác định các cột có outliers nghiêm trọng
+- Đề xuất phương pháp xử lý outliers (Winsorization, IQR, Log transform, ...)
+- Đề xuất biến đổi phân phối nếu cần (Log, Box-Cox, ...)
+
+**Bước 4: Mã Hóa Biến Phân Loại**
+- Xác định các biến phân loại cần mã hóa
+- Đề xuất phương pháp mã hóa CHO TỪNG CỘT (One-Hot, Label Encoding, Target Encoding, ...)
+- Giải thích lý do chọn phương pháp đó (dựa vào cardinality, mối quan hệ với target, ...)
+
+FORMAT:
+- Mỗi bước phải có tiêu đề in đậm với emoji
+- Dưới mỗi bước là danh sách gạch đầu dòng CHI TIẾT, CỤ THỂ
+- Đề cập TÊN CỘT và PHƯƠNG PHÁP cụ thể
+- Ngôn ngữ: Tiếng Việt chuyên nghiệp
+
+QUAN TRỌNG: 
+- PHẢI trả về ĐÚNG 4 BƯỚC theo cấu trúc trên
+- Mỗi bước phải CỤ THỂ, đề cập tên cột và phương pháp
+- KHÔNG thêm bước khác, KHÔNG tóm tắt chung chung
+- CHỈ trả về 4 bước, KHÔNG giải thích thêm!"""
 
                                 # Call LLM
                                 if is_llm_configured and api_key:
@@ -1333,21 +1389,45 @@ QUAN TRỌNG: CHỈ trả về danh sách các bước, KHÔNG giải thích th�
                                         suggestions_text = response.text.strip()
                                     else:
                                         # Fallback for other providers or no API
-                                        suggestions_text = """**📋 Các Bước Tiền Xử Lý Đề Xuất:**
+                                        suggestions_text = """**📋 Roadmap Tiền Xử Lý Dữ Liệu:**
 
-1. **Xử lý Missing Values** - Xác định và xử lý các cột có dữ liệu thiếu
-2. **Xử lý Outliers** - Kiểm tra và xử lý các giá trị ngoại lệ
-3. **Mã hóa biến phân loại** - Chuyển đổi biến categorical thành số
-4. **Chuẩn hóa dữ liệu** - Scale các biến số về cùng khoảng giá trị
-5. **Feature Engineering** - Tạo thêm features mới nếu cần thiết"""
+**Bước 1: 🔍 Xử Lý Biến Định Danh & Giá Trị Không Hợp Lệ**
+- Xác định và loại bỏ các cột định danh (customer_id, ID, ...)
+- Kiểm tra và xử lý các giá trị không hợp lệ (âm, ngoài phạm vi hợp lý)
+
+**Bước 2: ❓ Xử Lý Giá Trị Thiếu**
+- Xác định các cột có missing values
+- Áp dụng phương pháp phù hợp: Drop, Mean/Median Imputation, hoặc Forward Fill
+
+**Bước 3: ⚠️ Xử Lý Outliers & Biến Đổi Phân Phối**
+- Phát hiện outliers bằng phương pháp IQR hoặc Z-score
+- Áp dụng Winsorization hoặc Log Transform cho các cột có outliers
+- Biến đổi phân phối lệch bằng Log hoặc Box-Cox nếu cần
+
+**Bước 4: 🔤 Mã Hóa Biến Phân Loại**
+- One-Hot Encoding cho biến có cardinality thấp (< 10 categories)
+- Label Encoding cho biến ordinal hoặc binary
+- Target Encoding cho biến có cardinality cao"""
                                 else:
-                                    suggestions_text = """**📋 Các Bước Tiền Xử Lý Đề Xuất:**
+                                    suggestions_text = """**📋 Roadmap Tiền Xử Lý Dữ Liệu:**
 
-1. **Xử lý Missing Values** - Xác định và xử lý các cột có dữ liệu thiếu
-2. **Xử lý Outliers** - Kiểm tra và xử lý các giá trị ngoại lệ
-3. **Mã hóa biến phân loại** - Chuyển đổi biến categorical thành số
-4. **Chuẩn hóa dữ liệu** - Scale các biến số về cùng khoảng giá trị
-5. **Feature Engineering** - Tạo thêm features mới nếu cần thiết"""
+**Bước 1: 🔍 Xử Lý Biến Định Danh & Giá Trị Không Hợp Lệ**
+- Xác định và loại bỏ các cột định danh (customer_id, ID, ...)
+- Kiểm tra và xử lý các giá trị không hợp lệ (âm, ngoài phạm vi hợp lý)
+
+**Bước 2: ❓ Xử Lý Giá Trị Thiếu**
+- Xác định các cột có missing values
+- Áp dụng phương pháp phù hợp: Drop, Mean/Median Imputation, hoặc Forward Fill
+
+**Bước 3: ⚠️ Xử Lý Outliers & Biến Đổi Phân Phối**
+- Phát hiện outliers bằng phương pháp IQR hoặc Z-score
+- Áp dụng Winsorization hoặc Log Transform cho các cột có outliers
+- Biến đổi phân phối lệch bằng Log hoặc Box-Cox nếu cần
+
+**Bước 4: 🔤 Mã Hóa Biến Phân Loại**
+- One-Hot Encoding cho biến có cardinality thấp (< 10 categories)
+- Label Encoding cho biến ordinal hoặc binary
+- Target Encoding cho biến có cardinality cao"""
                                 
                                 # Save to session state
                                 st.session_state.preprocessing_suggestions = suggestions_text

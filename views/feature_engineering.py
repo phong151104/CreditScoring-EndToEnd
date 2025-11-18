@@ -65,13 +65,16 @@ def render():
                 # Restore original data
                 st.session_state.data = st.session_state.data_original_backup.copy()
                 # Clear all configs
+                st.session_state.removed_columns_config = {}
                 st.session_state.missing_config = {}
                 st.session_state.encoding_config = {}
                 st.session_state.scaling_config = {}
                 st.session_state.outlier_config = {}
                 st.session_state.binning_config = {}
+                st.session_state.validation_config = {}
                 # Clear column backups
                 st.session_state.column_backups = {}
+                st.session_state.removed_columns_backup = {}
                 st.success("✅ Đã hoàn về dữ liệu ban đầu!")
                 st.rerun()
     
@@ -89,33 +92,328 @@ def render():
     with tab1:
         st.markdown("### 🔧 Các Bước Tiền Xử Lý")
         
-        # Show saved configurations summary at the top
-        if st.session_state.get('missing_config') or st.session_state.get('processed_data') is not None:
-            st.markdown("#### 📌 Trạng Thái Xử Lý")
-            
-            status_col1, status_col2, status_col3 = st.columns(3)
+        # ============ DASHBOARD TỔNG HỢP CẤU HÌNH ============
+        st.markdown("#### 📊 Dashboard Theo Dõi Cấu Hình")
+        
+        # Count all configurations
+        total_configs = (
+            len(st.session_state.get('removed_columns_config', {})) +
+            len(st.session_state.get('missing_config', {})) +
+            len(st.session_state.get('outlier_config', {}).get('columns', [])) +
+            len(st.session_state.get('encoding_config', {})) +
+            len(st.session_state.get('validation_config', {}))
+        )
+        
+        if total_configs > 0:
+            # Summary cards
+            status_col1, status_col2, status_col3, status_col4, status_col5 = st.columns(5)
             
             with status_col1:
-                if st.session_state.get('processed_data') is not None:
-                    st.success(f"✅ Đã xử lý: {len(st.session_state.processed_data)} dòng")
+                removed_cols = len(st.session_state.get('removed_columns_config', {}))
+                if removed_cols > 0:
+                    st.metric("🗑️ Loại Bỏ Cột", removed_cols, delta="cột")
                 else:
-                    st.info("○ Chưa áp dụng xử lý")
+                    st.metric("🗑️ Loại Bỏ Cột", "0", delta="chưa có")
             
             with status_col2:
                 missing_configs = len(st.session_state.get('missing_config', {}))
                 if missing_configs > 0:
-                    st.info(f"📝 {missing_configs} cấu hình Missing")
+                    st.metric("📝 Missing Values", missing_configs, delta="cột")
                 else:
-                    st.caption("Chưa có cấu hình")
+                    st.metric("📝 Missing Values", "0", delta="chưa có")
             
             with status_col3:
-                if st.session_state.get('processed_data') is not None:
-                    original_missing = data.isnull().sum().sum()
-                    processed_missing = st.session_state.processed_data.isnull().sum().sum()
-                    reduced = original_missing - processed_missing
-                    st.metric("Đã giảm missing", f"{reduced}", delta=f"-{reduced}")
+                outlier_configs = len(st.session_state.get('outlier_config', {}).get('columns', []))
+                if outlier_configs > 0:
+                    st.metric("⚠️ Outliers", outlier_configs, delta="cột")
+                else:
+                    st.metric("⚠️ Outliers", "0", delta="chưa có")
+            
+            with status_col4:
+                encoding_configs = len(st.session_state.get('encoding_config', {}))
+                if encoding_configs > 0:
+                    st.metric("🔤 Encoding", encoding_configs, delta="cột")
+                else:
+                    st.metric("🔤 Encoding", "0", delta="chưa có")
+            
+            with status_col5:
+                validation_configs = len(st.session_state.get('validation_config', {}))
+                if validation_configs > 0:
+                    st.metric("✅ Validation", validation_configs, delta="cột")
+                else:
+                    st.metric("✅ Validation", "0", delta="chưa có")
+            
+            # Detailed configuration table
+            st.markdown("##### 📋 Chi Tiết Cấu Hình Đã Lưu")
+            
+            # Create a container for configurations with undo buttons
+            config_count = 0
+            
+            # Removed columns
+            for col, cfg in st.session_state.get('removed_columns_config', {}).items():
+                config_count += 1
+                col1, col2, col3, col4, col5, col6 = st.columns([1.5, 1.5, 2, 1.5, 1.5, 0.8])
+                
+                with col1:
+                    st.markdown(f"**2️⃣ Loại Bỏ Cột**")
+                with col2:
+                    st.markdown(f"`{col}`")
+                with col3:
+                    st.markdown(f"{cfg.get('reason', 'Loại bỏ')}")
+                with col4:
+                    st.markdown(f"unique={cfg.get('unique_count', 'N/A')}")
+                with col5:
+                    st.markdown("✅ **Đã áp dụng**")
+                with col6:
+                    if st.button("↩️", key=f"undo_removed_{col}", help=f"Hoàn tác loại bỏ cột {col}"):
+                        # Restore column from backup
+                        if col in st.session_state.get('removed_columns_backup', {}):
+                            st.session_state.data[col] = st.session_state.removed_columns_backup[col]
+                            del st.session_state.removed_columns_backup[col]
+                            del st.session_state.removed_columns_config[col]
+                            st.success(f"✅ Đã khôi phục cột `{col}`")
+                            st.rerun()
+                
+                st.markdown("---")
+            
+            # Missing configs
+            for col, cfg in st.session_state.get('missing_config', {}).items():
+                config_count += 1
+                col1, col2, col3, col4, col5, col6 = st.columns([1.5, 1.5, 2, 1.5, 1.5, 0.8])
+                
+                with col1:
+                    st.markdown(f"**2️⃣ Missing Values**")
+                with col2:
+                    st.markdown(f"`{col}`")
+                with col3:
+                    st.markdown(f"{cfg.get('method', 'N/A')}")
+                with col4:
+                    st.markdown(f"{cfg.get('value', 'N/A')}")
+                with col5:
+                    st.markdown("⏳ **Chờ áp dụng**")
+                with col6:
+                    if st.button("🗑️", key=f"delete_missing_{col}", help=f"Xóa cấu hình {col}"):
+                        del st.session_state.missing_config[col]
+                        st.success(f"✅ Đã xóa cấu hình")
+                        st.rerun()
+                
+                st.markdown("---")
+            
+            # Outlier configs
+            if st.session_state.get('outlier_config'):
+                outlier_cfg = st.session_state.outlier_config
+                is_applied = 'info' in outlier_cfg
+                
+                for col in outlier_cfg.get('columns', []):
+                    config_count += 1
+                    col1, col2, col3, col4, col5, col6 = st.columns([1.5, 1.5, 2, 1.5, 1.5, 0.8])
+                    
+                    with col1:
+                        st.markdown(f"**4️⃣ Outliers**")
+                    with col2:
+                        st.markdown(f"`{col}`")
+                    with col3:
+                        st.markdown(f"{outlier_cfg.get('method', 'N/A')}")
+                    with col4:
+                        st.markdown(f"{outlier_cfg.get('multiplier', outlier_cfg.get('threshold', 'N/A'))}")
+                    with col5:
+                        if is_applied:
+                            st.markdown("✅ **Đã áp dụng**")
+                        else:
+                            st.markdown("⏳ **Chờ áp dụng**")
+                    with col6:
+                        if is_applied and col in st.session_state.get('column_backups', {}):
+                            if st.button("↩️", key=f"undo_outlier_{col}", help=f"Hoàn tác xử lý outlier {col}"):
+                                # Restore column from backup
+                                st.session_state.data[col] = st.session_state.column_backups[col]
+                                del st.session_state.column_backups[col]
+                                # Remove from outlier config
+                                st.session_state.outlier_config['columns'].remove(col)
+                                if not st.session_state.outlier_config['columns']:
+                                    st.session_state.outlier_config = {}
+                                st.success(f"✅ Đã hoàn tác xử lý outlier cho `{col}`")
+                                st.rerun()
+                    
+                    st.markdown("---")
+            
+            # Encoding configs
+            for col, cfg in st.session_state.get('encoding_config', {}).items():
+                config_count += 1
+                col1, col2, col3, col4, col5, col6 = st.columns([1.5, 1.5, 2, 1.5, 1.5, 0.8])
+                
+                params_str = ''
+                if 'params' in cfg:
+                    params = cfg['params']
+                    if 'drop_first' in params:
+                        params_str = f"drop_first={params['drop_first']}"
+                    elif 'target_column' in params:
+                        params_str = f"target={params['target_column']}"
+                
+                is_applied = cfg.get('applied', False)
+                
+                with col1:
+                    st.markdown(f"**5️⃣ Encoding**")
+                with col2:
+                    st.markdown(f"`{col}`")
+                with col3:
+                    st.markdown(f"{cfg.get('method', 'N/A')}")
+                with col4:
+                    st.markdown(f"{params_str or 'default'}")
+                with col5:
+                    if is_applied:
+                        st.markdown("✅ **Đã áp dụng**")
+                    else:
+                        st.markdown("⏳ **Chờ áp dụng**")
+                with col6:
+                    if is_applied and f"encoding_{col}" in st.session_state.get('column_backups', {}):
+                        if st.button("↩️", key=f"undo_encoding_{col}", help=f"Hoàn tác mã hóa {col}"):
+                            # Restore original column
+                            backup_key = f"encoding_{col}"
+                            st.session_state.data[col] = st.session_state.column_backups[backup_key]
+                            del st.session_state.column_backups[backup_key]
+                            
+                            # Remove encoded columns if One-Hot
+                            if col in st.session_state.get('encoding_applied_info', {}):
+                                enc_info = st.session_state.encoding_applied_info[col]
+                                if 'new_columns' in enc_info:
+                                    for new_col in enc_info['new_columns']:
+                                        if new_col in st.session_state.data.columns:
+                                            st.session_state.data.drop(columns=[new_col], inplace=True)
+                                del st.session_state.encoding_applied_info[col]
+                            
+                            # Remove from encoding config
+                            del st.session_state.encoding_config[col]
+                            st.success(f"✅ Đã hoàn tác mã hóa cho `{col}`")
+                            st.rerun()
+                    elif not is_applied:
+                        if st.button("🗑️", key=f"delete_encoding_{col}", help=f"Xóa cấu hình {col}"):
+                            del st.session_state.encoding_config[col]
+                            st.success(f"✅ Đã xóa cấu hình")
+                            st.rerun()
+                
+                st.markdown("---")
+            
+            # Validation configs
+            for col, cfg in st.session_state.get('validation_config', {}).items():
+                config_count += 1
+                col1, col2, col3, col4, col5, col6 = st.columns([1.5, 1.5, 2, 1.5, 1.5, 0.8])
+                
+                is_applied = cfg.get('applied', False)
+                
+                with col1:
+                    st.markdown(f"**2️⃣ Validation**")
+                with col2:
+                    st.markdown(f"`{col}`")
+                with col3:
+                    st.markdown(f"{cfg.get('type', 'N/A')}")
+                with col4:
+                    st.markdown(f"{cfg.get('threshold', cfg.get('value', 'N/A'))}")
+                with col5:
+                    if is_applied:
+                        st.markdown("✅ **Đã áp dụng**")
+                    else:
+                        st.markdown("⏳ **Chờ áp dụng**")
+                with col6:
+                    if is_applied and f"validation_{col}" in st.session_state.get('column_backups', {}):
+                        if st.button("↩️", key=f"undo_validation_{col}", help=f"Hoàn tác validation {col}"):
+                            # Restore column from backup
+                            backup_key = f"validation_{col}"
+                            st.session_state.data[col] = st.session_state.column_backups[backup_key]
+                            del st.session_state.column_backups[backup_key]
+                            del st.session_state.validation_config[col]
+                            st.success(f"✅ Đã hoàn tác validation cho `{col}`")
+                            st.rerun()
+                    elif not is_applied:
+                        if st.button("🗑️", key=f"delete_validation_{col}", help=f"Xóa cấu hình {col}"):
+                            del st.session_state.validation_config[col]
+                            st.success(f"✅ Đã xóa cấu hình")
+                            st.rerun()
+                
+                st.markdown("---")
+            
+            if config_count == 0:
+                st.info("💡 Chưa có cấu hình nào. Hãy thêm cấu hình ở các bước bên dưới.")
+            
+            # Action buttons
+            st.markdown("---")
+            action_col1, action_col2, action_col3 = st.columns(3)
+            
+            with action_col1:
+                if st.button("🔄 Làm Mới Dashboard", key="refresh_dashboard", use_container_width=True):
+                    st.rerun()
+            
+            with action_col2:
+                # Export configuration as JSON
+                if st.button("📥 Xuất Cấu Hình", key="export_config", use_container_width=True):
+                    import json
+                    config_export = {
+                        'removed_columns': st.session_state.get('removed_columns_config', {}),
+                        'validation': st.session_state.get('validation_config', {}),
+                        'missing': st.session_state.get('missing_config', {}),
+                        'outlier': st.session_state.get('outlier_config', {}),
+                        'encoding': st.session_state.get('encoding_config', {})
+                    }
+                    config_json = json.dumps(config_export, indent=2, default=str)
+                    st.download_button(
+                        "💾 Tải JSON",
+                        config_json,
+                        "preprocessing_config.json",
+                        "application/json",
+                        key="download_config_json"
+                    )
+            
+            with action_col3:
+                # Clear all pending configs
+                pending_missing = len([c for c in st.session_state.get('missing_config', {}).items() if not c[1].get('applied')])
+                pending_encoding = len([c for c in st.session_state.get('encoding_config', {}).items() if not c[1].get('applied')])
+                pending_validation = len([c for c in st.session_state.get('validation_config', {}).items() if not c[1].get('applied')])
+                pending_count = pending_missing + pending_encoding + pending_validation
+                
+                if pending_count > 0:
+                    if st.button(f"🗑️ Xóa {pending_count} Chờ Áp Dụng", key="clear_pending", use_container_width=True, type="secondary"):
+                        # Clear only pending configs
+                        # Keep applied encoding configs
+                        st.session_state.encoding_config = {
+                            col: cfg for col, cfg in st.session_state.get('encoding_config', {}).items()
+                            if cfg.get('applied', False)
+                        }
+                        # Keep applied validation configs
+                        st.session_state.validation_config = {
+                            col: cfg for col, cfg in st.session_state.get('validation_config', {}).items()
+                            if cfg.get('applied', False)
+                        }
+                        # Clear pending missing configs
+                        st.session_state.missing_config = {}
+                        st.success(f"✅ Đã xóa {pending_count} cấu hình chờ áp dụng!")
+                        st.rerun()
+            
+            # Summary statistics
+            st.markdown("---")
+            summary_col1, summary_col2, summary_col3 = st.columns(3)
+            
+            with summary_col1:
+                pending = pending_count if 'pending_count' in locals() else 0
+                st.info(f"⏳ **{pending}** cấu hình chờ áp dụng")
+            
+            with summary_col2:
+                applied = (
+                    len(st.session_state.get('removed_columns_config', {})) +
+                    len([c for c in st.session_state.get('encoding_config', {}).items() if c[1].get('applied')]) +
+                    len([c for c in st.session_state.get('validation_config', {}).items() if c[1].get('applied')]) +
+                    (len(st.session_state.get('outlier_config', {}).get('columns', [])) if 'info' in st.session_state.get('outlier_config', {}) else 0)
+                )
+                st.success(f"✅ **{applied}** cấu hình đã áp dụng")
+            
+            with summary_col3:
+                total = applied + pending
+                st.metric("📊 Tổng cộng", f"{total} cấu hình")
             
             st.markdown("---")
+        else:
+            st.info("💡 Chưa có cấu hình nào được lưu. Hãy bắt đầu thêm cấu hình ở các bước bên dưới!")
+            st.markdown("---")
+        
+        # ============ END DASHBOARD ============
         
         st.markdown("### 1️⃣ Tổng Quan Dữ Liệu Thiếu")
         
@@ -249,12 +547,26 @@ def render():
                 
                 if st.button("🗑️ Loại Bỏ Các Cột Đã Chọn", key="remove_id_cols", use_container_width=True, type="primary"):
                     if cols_to_remove:
+                        # Initialize removed_columns_config if not exists
+                        if 'removed_columns_config' not in st.session_state:
+                            st.session_state.removed_columns_config = {}
+                        
                         # Backup before removing
                         if 'removed_columns_backup' not in st.session_state:
                             st.session_state.removed_columns_backup = {}
                         
                         for col in cols_to_remove:
+                            # Backup data
                             st.session_state.removed_columns_backup[col] = st.session_state.data[col].copy()
+                            
+                            # Save to config for dashboard tracking
+                            st.session_state.removed_columns_config[col] = {
+                                'reason': 'Biến định danh',
+                                'unique_count': st.session_state.data[col].nunique(),
+                                'applied': True
+                            }
+                            
+                            # Remove from data
                             st.session_state.data = st.session_state.data.drop(columns=[col])
                         
                         st.success(f"✅ Đã loại bỏ {len(cols_to_remove)} cột!")
@@ -322,8 +634,27 @@ def render():
                             key="negative_action"
                         )
                         
+                        # Initialize validation config
+                        if 'validation_config' not in st.session_state:
+                            st.session_state.validation_config = {}
+                        
                         if st.button("✅ Áp Dụng", key="apply_negative", use_container_width=True, type="primary"):
                             if invalid_count > 0:
+                                # Backup before applying
+                                if 'column_backups' not in st.session_state:
+                                    st.session_state.column_backups = {}
+                                backup_key = f"validation_{selected_validate_col}"
+                                st.session_state.column_backups[backup_key] = st.session_state.data[selected_validate_col].copy()
+                                
+                                # Save config
+                                st.session_state.validation_config[selected_validate_col] = {
+                                    'type': validation_type,
+                                    'action': action,
+                                    'affected_count': invalid_count,
+                                    'applied': True
+                                }
+                                
+                                # Apply
                                 if action == "Chuyển về 0":
                                     st.session_state.data.loc[st.session_state.data[selected_validate_col] < 0, selected_validate_col] = 0
                                 else:
@@ -350,6 +681,25 @@ def render():
                         
                         if st.button("✅ Áp Dụng", key="apply_min", use_container_width=True, type="primary"):
                             if invalid_count > 0:
+                                # Backup before applying
+                                if 'column_backups' not in st.session_state:
+                                    st.session_state.column_backups = {}
+                                backup_key = f"validation_{selected_validate_col}"
+                                st.session_state.column_backups[backup_key] = st.session_state.data[selected_validate_col].copy()
+                                
+                                # Save config
+                                if 'validation_config' not in st.session_state:
+                                    st.session_state.validation_config = {}
+                                
+                                st.session_state.validation_config[selected_validate_col] = {
+                                    'type': validation_type,
+                                    'threshold': min_threshold,
+                                    'action': action,
+                                    'affected_count': invalid_count,
+                                    'applied': True
+                                }
+                                
+                                # Apply
                                 if "NA" in action:
                                     st.session_state.data.loc[st.session_state.data[selected_validate_col] < min_threshold, selected_validate_col] = np.nan
                                 else:
@@ -374,6 +724,25 @@ def render():
                         
                         if st.button("✅ Áp Dụng", key="apply_max", use_container_width=True, type="primary"):
                             if invalid_count > 0:
+                                # Backup before applying
+                                if 'column_backups' not in st.session_state:
+                                    st.session_state.column_backups = {}
+                                backup_key = f"validation_{selected_validate_col}"
+                                st.session_state.column_backups[backup_key] = st.session_state.data[selected_validate_col].copy()
+                                
+                                # Save config
+                                if 'validation_config' not in st.session_state:
+                                    st.session_state.validation_config = {}
+                                
+                                st.session_state.validation_config[selected_validate_col] = {
+                                    'type': validation_type,
+                                    'threshold': max_threshold,
+                                    'action': action,
+                                    'affected_count': invalid_count,
+                                    'applied': True
+                                }
+                                
+                                # Apply
                                 if "NA" in action:
                                     st.session_state.data.loc[st.session_state.data[selected_validate_col] > max_threshold, selected_validate_col] = np.nan
                                 else:
@@ -400,6 +769,25 @@ def render():
                         
                         if st.button("✅ Áp Dụng", key="apply_range", use_container_width=True, type="primary"):
                             if invalid_count > 0:
+                                # Backup before applying
+                                if 'column_backups' not in st.session_state:
+                                    st.session_state.column_backups = {}
+                                backup_key = f"validation_{selected_validate_col}"
+                                st.session_state.column_backups[backup_key] = st.session_state.data[selected_validate_col].copy()
+                                
+                                # Save config
+                                if 'validation_config' not in st.session_state:
+                                    st.session_state.validation_config = {}
+                                
+                                st.session_state.validation_config[selected_validate_col] = {
+                                    'type': validation_type,
+                                    'range': f'[{range_min}, {range_max}]',
+                                    'action': action,
+                                    'affected_count': invalid_count,
+                                    'applied': True
+                                }
+                                
+                                # Apply
                                 if action == "Clamp về ngưỡng":
                                     st.session_state.data[selected_validate_col] = st.session_state.data[selected_validate_col].clip(range_min, range_max)
                                 else:
@@ -652,41 +1040,218 @@ def render():
             
             outlier_method = st.selectbox(
                 "Phương pháp:",
-                ["IQR Method", "Z-Score", "Winsorization", "Keep All"],
+                ["Winsorization", "IQR Method", "Z-Score", "Keep All"],
                 key="outlier_method",
-                help="IQR: Sử dụng Interquartile Range\nZ-Score: Dựa trên độ lệch chuẩn\nWinsorization: Thay thế outliers bằng giá trị ngưỡng"
+                help="Winsorization: Thay outliers bằng phân vị\nIQR: Sử dụng Interquartile Range\nZ-Score: Dựa trên độ lệch chuẩn\nKeep All: Giữ nguyên"
             )
             
-            if outlier_method != "Keep All":
-                threshold = st.slider(
-                    "Ngưỡng:",
-                    1.0, 5.0, 1.5 if outlier_method == "IQR Method" else 3.0, 0.5,
-                    key="outlier_threshold"
-                )
+            # Show method-specific parameters
+            if outlier_method == "Winsorization":
+                st.markdown("**Cấu hình phân vị:**")
+                col_w1, col_w2 = st.columns(2)
+                with col_w1:
+                    lower_percentile = st.number_input(
+                        "Phân vị dưới:",
+                        min_value=0.0,
+                        max_value=0.5,
+                        value=0.05,
+                        step=0.01,
+                        key="winsor_lower",
+                        help="Ví dụ: 0.05 = 5% (thay outliers dưới 5% bằng giá trị 5%)"
+                    )
+                with col_w2:
+                    upper_percentile = st.number_input(
+                        "Phân vị trên:",
+                        min_value=0.5,
+                        max_value=1.0,
+                        value=0.95,
+                        step=0.01,
+                        key="winsor_upper",
+                        help="Ví dụ: 0.95 = 95% (thay outliers trên 95% bằng giá trị 95%)"
+                    )
+            
+            elif outlier_method == "IQR Method":
+                st.markdown("**Cấu hình IQR:**")
+                col_iqr1, col_iqr2 = st.columns(2)
+                with col_iqr1:
+                    iqr_multiplier = st.slider(
+                        "Hệ số IQR:",
+                        min_value=1.0,
+                        max_value=3.0,
+                        value=1.5,
+                        step=0.1,
+                        key="iqr_multiplier",
+                        help="Ngưỡng = Q1 - k*IQR và Q3 + k*IQR"
+                    )
+                with col_iqr2:
+                    iqr_action = st.selectbox(
+                        "Hành động:",
+                        ["clip", "remove", "nan"],
+                        key="iqr_action",
+                        help="clip: cắt về ngưỡng\nremove: xóa dòng\nnan: thay bằng NaN"
+                    )
+            
+            elif outlier_method == "Z-Score":
+                st.markdown("**Cấu hình Z-Score:**")
+                col_z1, col_z2 = st.columns(2)
+                with col_z1:
+                    z_threshold = st.slider(
+                        "Ngưỡng Z-score:",
+                        min_value=2.0,
+                        max_value=4.0,
+                        value=3.0,
+                        step=0.1,
+                        key="z_threshold",
+                        help="Giá trị có |z-score| > ngưỡng sẽ được xử lý"
+                    )
+                with col_z2:
+                    z_action = st.selectbox(
+                        "Hành động:",
+                        ["clip", "remove", "nan"],
+                        key="z_action",
+                        help="clip: cắt về ngưỡng\nremove: xóa dòng\nnan: thay bằng NaN"
+                    )
             
             numeric_cols_for_outlier = data.select_dtypes(include=[np.number]).columns.tolist()
             if numeric_cols_for_outlier:
                 selected_outlier_cols = st.multiselect(
                     "Chọn các cột cần xử lý outliers:",
                     numeric_cols_for_outlier,
-                    key="selected_outlier_cols"
+                    key="selected_outlier_cols",
+                    help="Chọn các cột số cần phát hiện và xử lý outliers"
                 )
                 
                 if st.button("✅ Xử Lý Outliers", key="apply_outliers", use_container_width=True, type="primary"):
                     if selected_outlier_cols:
-                        with st.spinner(f"Đang xử lý outliers..."):
-                            show_processing_placeholder(f"Xử lý outliers bằng {outlier_method}")
-                            st.success(f"✅ Đã xử lý outliers cho {len(selected_outlier_cols)} cột!")
+                        with st.spinner(f"Đang xử lý outliers bằng {outlier_method}..."):
+                            try:
+                                # Import backend handler
+                                from backend.data_processing import handle_outliers
+                                
+                                # Backup columns before processing
+                                if 'column_backups' not in st.session_state:
+                                    st.session_state.column_backups = {}
+                                
+                                for col in selected_outlier_cols:
+                                    st.session_state.column_backups[col] = st.session_state.data[col].copy()
+                                
+                                # Prepare parameters based on method
+                                kwargs = {}
+                                if outlier_method == "Winsorization":
+                                    kwargs = {
+                                        'lower_percentile': lower_percentile,
+                                        'upper_percentile': upper_percentile
+                                    }
+                                elif outlier_method == "IQR Method":
+                                    kwargs = {
+                                        'multiplier': iqr_multiplier,
+                                        'action': iqr_action
+                                    }
+                                elif outlier_method == "Z-Score":
+                                    kwargs = {
+                                        'threshold': z_threshold,
+                                        'action': z_action
+                                    }
+                                
+                                # Apply outlier handling
+                                processed_data, outlier_info = handle_outliers(
+                                    data=st.session_state.data,
+                                    method=outlier_method,
+                                    columns=selected_outlier_cols,
+                                    **kwargs
+                                )
+                                
+                                # Save to session state
+                                st.session_state.data = processed_data
+                                st.session_state.outlier_config = {
+                                    'method': outlier_method,
+                                    'columns': selected_outlier_cols,
+                                    'info': outlier_info,
+                                    **kwargs
+                                }
+                                
+                                st.success(f"✅ Đã xử lý outliers cho {len(selected_outlier_cols)} cột bằng {outlier_method}!")
+                                
+                                # Show summary
+                                total_outliers = sum(info.get('outliers_count', info.get('outliers_detected', 0)) 
+                                                   for info in outlier_info.values())
+                                st.info(f"📊 Tổng số outliers đã xử lý: **{total_outliers}**")
+                                
+                                st.rerun()
+                                
+                            except Exception as e:
+                                st.error(f"❌ Lỗi khi xử lý outliers: {str(e)}")
+                                import traceback
+                                with st.expander("Chi tiết lỗi"):
+                                    st.code(traceback.format_exc())
                     else:
                         st.warning("Vui lòng chọn ít nhất 1 cột")
         
         with col_outlier2:
             st.markdown("##### 📊 Thống Kê Outliers")
             
-            if numeric_cols_for_outlier:
-                # Show outlier statistics
+            # Show saved outlier config if exists
+            if st.session_state.get('outlier_config'):
+                config = st.session_state.outlier_config
+                
+                st.markdown(f"""
+                <div style="background-color: #1a472a; padding: 1rem; border-radius: 8px; border-left: 4px solid #10b981; margin-bottom: 1rem;">
+                    <p style="margin: 0; font-weight: bold; color: #10b981;">✅ Đã Xử Lý</p>
+                    <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">
+                        <strong>Phương pháp:</strong> {config['method']}<br>
+                        <strong>Số cột:</strong> {len(config['columns'])}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Show detailed info for each column
+                if 'info' in config:
+                    outlier_summary = []
+                    for col, info in config['info'].items():
+                        outliers_count = info.get('outliers_count', info.get('outliers_detected', 0))
+                        outliers_pct = info.get('outliers_percentage', 0)
+                        
+                        outlier_summary.append({
+                            'Cột': col,
+                            'Outliers': outliers_count,
+                            'Tỷ lệ (%)': f"{outliers_pct:.2f}",
+                            'Phương pháp': info.get('method', config['method'])
+                        })
+                    
+                    if outlier_summary:
+                        st.dataframe(
+                            pd.DataFrame(outlier_summary),
+                            use_container_width=True,
+                            hide_index=True,
+                            height=min(300, len(outlier_summary) * 40 + 50)
+                        )
+                        
+                        # Show detailed report in expander
+                        with st.expander("📋 Xem Báo Cáo Chi Tiết"):
+                            for col, info in config['info'].items():
+                                st.markdown(f"**{col}**")
+                                
+                                info_items = []
+                                for key, value in info.items():
+                                    if key not in ['method', 'outliers_mask']:
+                                        if isinstance(value, (int, float)):
+                                            if isinstance(value, float):
+                                                info_items.append(f"- {key}: {value:.4f}")
+                                            else:
+                                                info_items.append(f"- {key}: {value}")
+                                        else:
+                                            info_items.append(f"- {key}: {value}")
+                                
+                                st.markdown("\n".join(info_items))
+                                st.markdown("---")
+            
+            elif numeric_cols_for_outlier:
+                st.info("⚙️ Cấu hình và áp dụng xử lý outliers ở bên trái")
+                
+                # Show outlier detection for preview
+                st.markdown("**Preview (Top 5 cột):**")
                 outlier_stats = []
-                for col in numeric_cols_for_outlier[:5]:  # Show first 5
+                for col in numeric_cols_for_outlier[:5]:
                     col_data = data[col].dropna()
                     if len(col_data) > 0:
                         Q1 = col_data.quantile(0.25)
@@ -697,12 +1262,19 @@ def render():
                         
                         outlier_stats.append({
                             'Cột': col,
-                            'Số outliers': len(outliers),
+                            'Outliers': len(outliers),
                             'Tỷ lệ (%)': f"{outlier_pct:.2f}"
                         })
                 
                 if outlier_stats:
-                    st.dataframe(pd.DataFrame(outlier_stats), use_container_width=True, hide_index=True)
+                    st.dataframe(
+                        pd.DataFrame(outlier_stats),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                    st.caption("💡 Sử dụng phương pháp IQR (k=1.5) để preview")
+            else:
+                st.info("Không có cột số nào để phân tích outliers")
         
         # Sub-section 4.2: Biến Đổi Phân Phối
         st.markdown("---")
@@ -920,12 +1492,82 @@ def render():
                 unique_count = data[selected_enc_col].nunique()
                 st.metric("Số giá trị khác nhau", unique_count)
                 
+                # Show recommendation
+                from backend.data_processing import recommend_encoding
+                recommendation = recommend_encoding(data, selected_enc_col)
+                
+                st.markdown(f"""
+                <div style="background-color: #1e3a5f; padding: 0.8rem; border-radius: 6px; border-left: 3px solid #3b82f6; margin: 0.5rem 0;">
+                    <p style="margin: 0; font-size: 0.85rem;">
+                        <strong>💡 Gợi ý:</strong> {recommendation['recommendation']}<br>
+                        <span style="font-size: 0.8rem; opacity: 0.9;">{recommendation['reason']}</span>
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                
                 # Encoding method selection
                 encoding_method = st.selectbox(
                     "Phương pháp mã hóa:",
                     ["One-Hot Encoding", "Label Encoding", "Target Encoding", "Ordinal Encoding"],
                     key="encoding_method"
                 )
+                
+                # Method-specific parameters
+                encoding_params = {}
+                
+                if encoding_method == "One-Hot Encoding":
+                    drop_first = st.checkbox(
+                        "Drop first dummy (tránh multicollinearity)",
+                        value=False,
+                        key="onehot_drop_first",
+                        help="Bỏ cột dummy đầu tiên để tránh hiện tượng đa cộng tuyến"
+                    )
+                    encoding_params['drop_first'] = drop_first
+                
+                elif encoding_method == "Target Encoding":
+                    st.markdown("**Cấu hình Target Encoding:**")
+                    
+                    # Find target column
+                    potential_targets = [col for col in data.columns 
+                                       if 'target' in col.lower() or 'default' in col.lower() 
+                                       or 'label' in col.lower() or 'churn' in col.lower()]
+                    
+                    numeric_cols_for_target = data.select_dtypes(include=[np.number]).columns.tolist()
+                    
+                    if potential_targets:
+                        default_target = potential_targets[0]
+                    elif numeric_cols_for_target:
+                        default_target = numeric_cols_for_target[-1]
+                    else:
+                        default_target = None
+                    
+                    if default_target and numeric_cols_for_target:
+                        target_col = st.selectbox(
+                            "Chọn cột target:",
+                            numeric_cols_for_target,
+                            index=numeric_cols_for_target.index(default_target) if default_target in numeric_cols_for_target else 0,
+                            key="target_encoding_target",
+                            help="Cột target để tính mean encoding"
+                        )
+                        
+                        smoothing = st.slider(
+                            "Smoothing (tránh overfitting):",
+                            min_value=0.0,
+                            max_value=10.0,
+                            value=1.0,
+                            step=0.5,
+                            key="target_encoding_smoothing",
+                            help="Giá trị cao hơn = ít overfitting hơn"
+                        )
+                        
+                        encoding_params['target_column'] = target_col
+                        encoding_params['smoothing'] = smoothing
+                    else:
+                        st.warning("⚠️ Không tìm thấy cột target. Vui lòng chọn phương pháp khác.")
+                
+                elif encoding_method == "Ordinal Encoding":
+                    st.markdown("**Thứ tự các categories:**")
+                    st.info("💡 Sắp xếp theo thứ tự có ý nghĩa (thấp → cao)")
                 
                 # Initialize encoding config
                 if 'encoding_config' not in st.session_state:
@@ -937,9 +1579,11 @@ def render():
                     if st.button("➕ Thêm Cấu Hình", key="add_enc_config", use_container_width=True):
                         st.session_state.encoding_config[selected_enc_col] = {
                             'method': encoding_method,
-                            'unique_count': unique_count
+                            'unique_count': unique_count,
+                            'params': encoding_params
                         }
-                        st.success(f"✅ Đã thêm cấu hình cho {selected_enc_col}")
+                        st.success(f"✅ Đã thêm cấu hình cho `{selected_enc_col}`")
+                        st.rerun()
                 
                 with enc_btn_col2:
                     if selected_enc_col in st.session_state.encoding_config:
@@ -966,10 +1610,90 @@ def render():
                 
                 # Apply all encoding configurations
                 if st.button("✅ Áp Dụng Tất Cả Mã Hóa", type="primary", use_container_width=True, key="apply_all_encoding"):
-                    with st.spinner("Đang mã hóa..."):
-                        show_processing_placeholder(f"Mã hóa {len(st.session_state.encoding_config)} biến phân loại")
-                        st.success(f"✅ Đã mã hóa {len(st.session_state.encoding_config)} biến!")
-                        st.info("💡 Cấu hình mã hóa đã được lưu lại.")
+                    with st.spinner("Đang mã hóa các biến phân loại..."):
+                        try:
+                            # Import backend encoder
+                            from backend.data_processing import encode_categorical
+                            
+                            # Backup columns before encoding
+                            if 'column_backups' not in st.session_state:
+                                st.session_state.column_backups = {}
+                            
+                            for col in st.session_state.encoding_config.keys():
+                                if col in st.session_state.data.columns:
+                                    backup_key = f"encoding_{col}"
+                                    st.session_state.column_backups[backup_key] = st.session_state.data[col].copy()
+                            
+                            encoded_data = st.session_state.data.copy()
+                            all_encoding_info = {}
+                            total_new_cols = 0
+                            
+                            # Apply each encoding configuration
+                            for col, cfg in st.session_state.encoding_config.items():
+                                method = cfg['method']
+                                params = cfg.get('params', {})
+                                
+                                # Apply encoding for this column
+                                encoded_data, encoding_info = encode_categorical(
+                                    data=encoded_data,
+                                    method=method,
+                                    columns=[col],
+                                    **params
+                                )
+                                
+                                # Merge encoding info
+                                all_encoding_info.update(encoding_info)
+                                
+                                # Count new columns (for One-Hot)
+                                if 'new_columns' in encoding_info.get(col, {}):
+                                    total_new_cols += encoding_info[col]['n_new_columns']
+                            
+                            # Save encoded data
+                            st.session_state.data = encoded_data
+                            
+                            # Save encoding info to session
+                            if 'encoding_applied_info' not in st.session_state:
+                                st.session_state.encoding_applied_info = {}
+                            st.session_state.encoding_applied_info.update(all_encoding_info)
+                            
+                            # Success message
+                            st.success(f"✅ Đã mã hóa {len(st.session_state.encoding_config)} biến!")
+                            
+                            # Show summary
+                            summary_items = []
+                            for col, info in all_encoding_info.items():
+                                if info['method'] == 'One-Hot Encoding':
+                                    summary_items.append(f"- `{col}` → {info['n_new_columns']} cột mới")
+                                else:
+                                    summary_items.append(f"- `{col}` → {info['method']}")
+                            
+                            st.info("📊 **Kết quả mã hóa:**\n" + "\n".join(summary_items))
+                            
+                            # Mark configs as applied instead of clearing
+                            for col in st.session_state.encoding_config:
+                                st.session_state.encoding_config[col]['applied'] = True
+                            
+                            st.rerun()
+                            
+                        except Exception as e:
+                            st.error(f"❌ Lỗi khi mã hóa: {str(e)}")
+                            import traceback
+                            with st.expander("Chi tiết lỗi"):
+                                st.code(traceback.format_exc())
+                
+                # Show applied encoding info if exists
+                if st.session_state.get('encoding_applied_info'):
+                    with st.expander("📋 Xem Chi Tiết Mã Hóa Đã Áp Dụng"):
+                        for col, info in st.session_state.encoding_applied_info.items():
+                            st.markdown(f"**{col}** - {info['method']}")
+                            
+                            if 'new_columns' in info:
+                                st.write(f"Tạo {info['n_new_columns']} cột mới:", info['new_columns'][:10])
+                            elif 'mapping' in info and len(str(info['mapping'])) < 500:
+                                st.write("Mapping:", info['mapping'])
+                            
+                            st.markdown("---")
+            
             else:
                 st.info("💡 Chưa có cấu hình mã hóa nào. Hãy chọn cột và phương pháp ở trên.")
         
