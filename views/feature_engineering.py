@@ -570,30 +570,247 @@ def render():
                 st.success("✨ Dữ liệu hoàn chỉnh, không có giá trị thiếu!")
         
         with col2:
-            st.markdown("##### 📊 Gợi Ý & Thống Kê")
+            # Import streamlit components
+            import streamlit.components.v1 as components
+            
+            # Initialize modal state
+            if 'show_suggestions_modal' not in st.session_state:
+                st.session_state.show_suggestions_modal = False
             
             suggestions = st.session_state.get("preprocessing_suggestions")
+            
+            # Generate suggestions content
             if suggestions:
-                st.markdown("""
-                <div style="background-color: #262730; padding: 1.2rem; border-radius: 10px; border-left: 4px solid #667eea;">
-                    <h4 style="margin-top: 0; color: #667eea; font-size: 1.1rem;">💡 Gợi Ý Xử Lý (AI)</h4>
-                """, unsafe_allow_html=True)
-                st.markdown(suggestions)
-                st.markdown("</div>", unsafe_allow_html=True)
+                suggestions_content = f"""<h4 style="margin-top: 0; color: #3b82f6; font-size: 1.1rem;">💡 Gợi Ý Xử Lý (AI)</h4>
+<div style="font-size: 0.9rem;">
+{suggestions}
+</div>"""
             else:
-                # Show default processing tips
-                st.markdown("""
-                <div style="background-color: #262730; padding: 1.2rem; border-radius: 10px; border-left: 4px solid #667eea;">
-                    <h4 style="margin-top: 0; color: #667eea; font-size: 1.1rem;">💡 Gợi Ý Xử Lý</h4>
-                    <ul style="font-size: 0.9rem; margin-bottom: 0;">
-                        <li><strong>Mean</strong>: Tốt cho dữ liệu phân phối chuẩn</li>
-                        <li><strong>Median</strong>: Tốt khi có outliers</li>
-                        <li><strong>Mode</strong>: Cho biến phân loại</li>
-                        <li><strong>Forward/Backward Fill</strong>: Cho time series</li>
-                        <li><strong>Interpolation</strong>: Cho dữ liệu liên tục</li>
-                    </ul>
-                </div>
-                """, unsafe_allow_html=True)
+                suggestions_content = """<h4 style="margin-top: 0; color: #3b82f6; font-size: 1.1rem;">💡 Gợi Ý Xử Lý</h4>
+<ul style="font-size: 0.9rem; margin-bottom: 0;">
+<li><strong>Mean</strong>: Tốt cho dữ liệu phân phối chuẩn</li>
+<li><strong>Median</strong>: Tốt khi có outliers</li>
+<li><strong>Mode</strong>: Cho biến phân loại</li>
+<li><strong>Forward/Backward Fill</strong>: Cho time series</li>
+<li><strong>Interpolation</strong>: Cho dữ liệu liên tục</li>
+</ul>"""
+            
+            # Add floating button with pure HTML/CSS
+            st.markdown(f"""
+<style>
+.floating-btn-container {{
+    position: fixed;
+    bottom: 80px;
+    right: 30px;
+    z-index: 9999;
+}}
+
+.floating-btn {{
+    background-color: #1e3a5f;
+    color: white;
+    border: 2px solid #3b82f6;
+    border-radius: 50px;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(30, 58, 95, 0.4);
+    transition: all 0.3s ease;
+    display: inline-block;
+}}
+
+.floating-btn:hover {{
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+    background-color: #2d4a7c;
+}}
+
+.modal-overlay {{
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.7);
+    animation: fadeIn 0.3s;
+}}
+
+.modal-overlay.show {{
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+}}
+
+.modal-content {{
+    background-color: #1e1e1e;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 700px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    animation: slideDown 0.3s;
+    max-height: 80vh;
+    overflow-y: auto;
+}}
+
+.modal-header {{
+    padding: 20px 30px;
+    background-color: #1e3a5f;
+    border: 2px solid #3b82f6;
+    color: white;
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}}
+
+.modal-body {{
+    padding: 30px;
+    color: #e0e0e0;
+}}
+
+.close-btn {{
+    color: white;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    background: none;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    transition: background 0.3s;
+}}
+
+.close-btn:hover {{
+    background: rgba(59, 130, 246, 0.3);
+}}
+
+@keyframes fadeIn {{
+    from {{ opacity: 0; }}
+    to {{ opacity: 1; }}
+}}
+
+@keyframes slideDown {{
+    from {{
+        transform: translateY(-50px);
+        opacity: 0;
+    }}
+    to {{
+        transform: translateY(0);
+        opacity: 1;
+    }}
+}}
+</style>
+
+<div class="floating-btn-container">
+    <button class="floating-btn" id="openSuggestionsBtn">
+        💡 Gợi Ý & Thống Kê
+    </button>
+</div>
+
+<div id="suggestionsModal" class="modal-overlay">
+    <div class="modal-content" id="suggestionsModalContent">
+        <div class="modal-header">
+            <h3 style="margin: 0;">📊 Gợi Ý & Thống Kê</h3>
+            <button class="close-btn" id="closeSuggestionsBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="background-color: #262730; padding: 1.2rem; border-radius: 10px; border-left: 4px solid #3b82f6;">
+{suggestions_content}
+            </div>
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+            
+            # Inject JS via components.html to ensure execution
+            components.html("""
+            <script>
+                (function() {
+                    console.log("🚀 Script started from iframe");
+                    
+                    function getDoc() {
+                        try {
+                            return window.parent.document;
+                        } catch (e) {
+                            console.error("Cannot access parent document", e);
+                            return document;
+                        }
+                    }
+
+                    var doc = getDoc();
+
+                    function openModal() {
+                        console.log("🔘 openModal called");
+                        var modal = doc.getElementById('suggestionsModal');
+                        if (modal) {
+                            modal.classList.add('show');
+                            modal.style.display = 'flex';
+                        }
+                    }
+                    
+                    function closeModal() {
+                        console.log("🔘 closeModal called");
+                        var modal = doc.getElementById('suggestionsModal');
+                        if (modal) {
+                            modal.classList.remove('show');
+                            modal.style.display = 'none';
+                        }
+                    }
+
+                    function attachEvents() {
+                        var openBtn = doc.getElementById('openSuggestionsBtn');
+                        var closeBtn = doc.getElementById('closeSuggestionsBtn');
+                        var modal = doc.getElementById('suggestionsModal');
+                        var modalContent = doc.getElementById('suggestionsModalContent');
+
+                        if (openBtn) {
+                            console.log("✅ Found openSuggestionsBtn");
+                            openBtn.onclick = openModal;
+                        }
+                        
+                        if (closeBtn) {
+                            closeBtn.onclick = closeModal;
+                        }
+
+                        if (modal) {
+                            modal.onclick = function(event) {
+                                if (event.target === modal) closeModal();
+                            }
+                        }
+                        
+                        if (modalContent) {
+                            modalContent.onclick = function(event) {
+                                event.stopPropagation();
+                            }
+                        }
+                        
+                        // Global escape key handler on parent document
+                        doc.addEventListener('keydown', function(event) {
+                            if (event.key === 'Escape') {
+                                closeModal();
+                            }
+                        });
+                    }
+
+                    // Poll for elements
+                    var attempts = 0;
+                    var interval = setInterval(function() {
+                        var openBtn = doc.getElementById('openSuggestionsBtn');
+                        if (openBtn) {
+                            console.log("✅ Elements found, attaching events");
+                            attachEvents();
+                            clearInterval(interval);
+                        }
+                        attempts++;
+                        if (attempts > 20) clearInterval(interval); // Stop after 10 seconds
+                    }, 500);
+                    
+                })();
+            </script>
+            """, height=0, width=0)
         
         st.markdown("---")
         
