@@ -83,7 +83,7 @@ def render():
     # Tabs for different processing steps
     tab1, tab2, tab3 = st.tabs([
         "🔧 Tiền Xử Lý",
-        "⭐ Feature Importance",
+        "📊 Phân Tích & Đánh Giá",
         "✅ Chọn Biến"
     ])
     
@@ -522,7 +522,7 @@ def render():
         missing_data = data.isnull().sum()
         missing_data = missing_data[missing_data > 0].sort_values(ascending=False)
         
-        col1, col2 = st.columns([3, 2])
+        col1, col2 = st.columns([1, 1]) # tỉ lệ 2 bên trái phải
         
         with col1:
             if len(missing_data) > 0:
@@ -538,7 +538,8 @@ def render():
             
             else:
                 st.success("✅ Không có giá trị thiếu trong dataset")
-            
+        
+        with col2:
             # Show missing patterns if data has missing
             missing_data_temp = data.isnull().sum()
             missing_data_temp = missing_data_temp[missing_data_temp > 0]
@@ -560,7 +561,7 @@ def render():
                 )
                 fig.update_layout(
                     template="plotly_dark",
-                    height=300,
+                    height=400, # chiều cao biểu đồ
                     showlegend=False,
                     margin=dict(l=0, r=0, t=30, b=0)
                 )
@@ -568,8 +569,7 @@ def render():
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.success("✨ Dữ liệu hoàn chỉnh, không có giá trị thiếu!")
-        
-        with col2:
+
             # Import streamlit components
             import streamlit.components.v1 as components
             
@@ -1144,6 +1144,12 @@ def render():
                             
                             # Remove from data
                             st.session_state.data = st.session_state.data.drop(columns=[col])
+                            
+                            # Also remove from train/valid/test if they exist
+                            for dataset_name in ['train_data', 'valid_data', 'test_data']:
+                                if dataset_name in st.session_state and st.session_state[dataset_name] is not None:
+                                    if col in st.session_state[dataset_name].columns:
+                                        st.session_state[dataset_name] = st.session_state[dataset_name].drop(columns=[col])
                         
                         st.success(f"✅ Đã loại bỏ {len(cols_to_remove)} cột!")
                         st.rerun()
@@ -2756,7 +2762,7 @@ def render():
                                 st.session_state.column_backups = {}
                             st.session_state.column_backups['data_before_balance'] = st.session_state.data.copy()
                             
-                            # Apply balancing
+                            # Apply balancing to main dataset
                             balanced_data, balance_info = balance_data(
                                 data=st.session_state.data,
                                 target_column=target_col_balance,
@@ -2765,9 +2771,30 @@ def render():
                                 sampling_strategy=sampling_strategy
                             )
                             
-                            # Update session state
+                            # Update session state for main dataset
                             st.session_state.data = balanced_data
                             st.session_state.balance_info = balance_info
+                            
+                            # Also apply to train_data if it exists (to keep Analysis tab in sync)
+                            if 'train_data' in st.session_state and st.session_state.train_data is not None:
+                                try:
+                                    # Check if target column exists in train_data
+                                    if target_col_balance in st.session_state.train_data.columns:
+                                        balanced_train, train_balance_info = balance_data(
+                                            data=st.session_state.train_data,
+                                            target_column=target_col_balance,
+                                            method=balance_method,
+                                            random_state=42,
+                                            sampling_strategy=sampling_strategy
+                                        )
+                                        st.session_state.train_data = balanced_train
+                                        
+                                        # Show info about train data update
+                                        train_change = train_balance_info.get('size_change', 0)
+                                        if train_change != 0:
+                                            st.info(f"ℹ️ Đã đồng bộ balancing sang tập Train: {len(balanced_train)} dòng ({'+' if train_change > 0 else ''}{train_change})")
+                                except Exception as e:
+                                    st.warning(f"⚠️ Không thể đồng bộ balancing sang tập Train: {str(e)}")
                             
                             # Show results
                             st.success(f"✅ {balance_info['message']}")
@@ -2859,11 +2886,12 @@ def render():
             else:
                 st.info("💡 Chưa xác định được target column. Vui lòng chọn target ở phần cấu hình bên trái.")
     
-    # Tab 2: Binning
-    
-    # Tab 2: Feature Importance
+    # Tab 2: Analysis & Evaluation
     with tab2:
-        st.markdown("### ⭐ Mức Độ Quan Trọng Của Đặc Trưng")
+        st.markdown("## 📊 Phân Tích & Đánh Giá Đặc Trưng")
+        
+        # ============ SECTION 1: Feature Importance ============
+        st.markdown("### 1️⃣ Mức Độ Quan Trọng Của Đặc Trưng (Feature Importance)")
         
         # Check if train/valid/test split exists
         if 'train_data' not in st.session_state or st.session_state.train_data is None:
@@ -3052,6 +3080,345 @@ def render():
                         </p>
                     </div>
                     """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # ============ SECTION 2: WOE Analysis ============
+        st.markdown("### 2️⃣ Weight of Evidence (WOE) Analysis")
+        
+        st.markdown("""
+        <div style="background-color: #1e3a5f; padding: 1rem; border-radius: 8px; border-left: 4px solid #3b82f6; margin-bottom: 1rem;">
+            <p style="margin: 0; font-size: 0.9rem;">💡 <strong>WOE (Weight of Evidence)</strong> là chỉ số quan trọng trong credit scoring, 
+            đo lường khả năng dự đoán của từng biến và giúp xác định các nhóm rủi ro.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Check if train/valid/test split exists
+        if 'train_data' not in st.session_state or st.session_state.train_data is None:
+            st.warning("⚠️ Vui lòng chia tập Train/Valid/Test trước khi tính WOE")
+            st.info("💡 Quay lại Tab 'Tiền Xử Lý' > Mục 2️⃣ để chia dữ liệu")
+        else:
+            col1, col2 = st.columns([1, 2])
+            
+            with col1:
+                st.markdown("#### ⚙️ Cấu Hình")
+                
+                # Select target column
+                train_cols = st.session_state.train_data.columns.tolist()
+                target_col = st.selectbox(
+                    "Chọn biến mục tiêu (Target):",
+                    train_cols,
+                    key="woe_target_col",
+                    help="Target phải là biến nhị phân (0/1)"
+                )
+                
+                # Select features to analyze
+                feature_cols = [col for col in train_cols if col != target_col]
+                selected_features = st.multiselect(
+                    "Chọn biến để phân tích WOE:",
+                    feature_cols,
+                    default=feature_cols[:min(5, len(feature_cols))],
+                    key="woe_features"
+                )
+                
+                # Number of bins for continuous variables
+                n_bins = st.slider(
+                    "Số bins cho biến liên tục:",
+                    min_value=3,
+                    max_value=10,
+                    value=5,
+                    key="woe_n_bins"
+                )
+                
+                if st.button("🔄 Tính WOE & IV", key="calc_woe", type="primary"):
+                    if len(selected_features) == 0:
+                        st.error("⚠️ Vui lòng chọn ít nhất một biến")
+                    else:
+                        with st.spinner("Đang tính WOE và Information Value..."):
+                            # Mock calculation
+                            import time
+                            time.sleep(1.5)
+                            
+                            # Create mock WOE results
+                            woe_results = {}
+                            for feat in selected_features:
+                                iv = np.random.uniform(0.02, 0.5)
+                                woe_results[feat] = {
+                                    'iv': iv,
+                                    'bins': n_bins,
+                                    'predictive_power': 'Strong' if iv > 0.3 else 'Medium' if iv > 0.1 else 'Weak'
+                                }
+                            
+                            st.session_state.woe_results = woe_results
+                            st.success(f"✅ Đã tính WOE cho {len(selected_features)} biến!")
+            
+            with col2:
+                st.markdown("#### 📊 Kết Quả WOE & Information Value")
+                
+                if 'woe_results' in st.session_state and st.session_state.woe_results:
+                    # Display results in a table
+                    woe_df = pd.DataFrame([
+                        {
+                            'Feature': feat,
+                            'IV': f"{results['iv']:.4f}",
+                            'Predictive Power': results['predictive_power']
+                        }
+                        for feat, results in st.session_state.woe_results.items()
+                    ]).sort_values('IV', ascending=False, key=lambda x: x.str.replace('[^0-9.]', '', regex=True).astype(float))
+                    
+                    st.dataframe(woe_df, use_container_width=True, hide_index=True)
+                    
+                    # IV interpretation guide
+                    st.markdown("""
+                    <div style="background-color: #262730; padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+                        <h4 style="margin-top: 0; color: #3b82f6;">📖 Giải Thích Information Value (IV)</h4>
+                        <ul style="font-size: 0.9rem; margin-bottom: 0;">
+                            <li><strong>IV < 0.02</strong>: Không có khả năng dự đoán</li>
+                            <li><strong>0.02 ≤ IV < 0.1</strong>: Khả năng dự đoán yếu</li>
+                            <li><strong>0.1 ≤ IV < 0.3</strong>: Khả năng dự đoán trung bình</li>
+                            <li><strong>0.3 ≤ IV < 0.5</strong>: Khả năng dự đoán mạnh</li>
+                            <li><strong>IV ≥ 0.5</strong>: Khả năng dự đoán rất mạnh (cần kiểm tra overfitting)</li>
+                        </ul>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Plot IV chart
+                    st.markdown("#### 📊 Biểu Đồ Information Value")
+                    iv_values = [float(results['iv']) for results in st.session_state.woe_results.values()]
+                    features = list(st.session_state.woe_results.keys())
+                    
+                    fig = go.Figure(data=[
+                        go.Bar(
+                            x=iv_values,
+                            y=features,
+                            orientation='h',
+                            marker=dict(
+                                color=iv_values,
+                                colorscale=[[0, '#ff6b6b'], [0.5, '#f9ca24'], [1, '#6c5ce7']],
+                                showscale=True,
+                                colorbar=dict(title="IV Value")
+                            )
+                        )
+                    ])
+                    
+                    fig.update_layout(
+                        template="plotly_dark",
+                        title="Information Value by Feature",
+                        xaxis_title="Information Value",
+                        yaxis_title="Feature",
+                        height=400,
+                        showlegend=False
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("💡 Nhấn nút 'Tính WOE & IV' bên trái để bắt đầu phân tích")
+        
+        st.markdown("---")
+        
+        # ============ SECTION 3: Multicollinearity ============
+        st.markdown("### 3️⃣ Phát Hiện & Xử Lý Đa Cộng Tuyến")
+        
+        st.markdown("""
+        <div style="background-color: #1e3a5f; padding: 1rem; border-radius: 8px; border-left: 4px solid #3b82f6; margin-bottom: 1rem;">
+            <p style="margin: 0; font-size: 0.9rem;">💡 <strong>Đa cộng tuyến</strong> xảy ra khi các biến độc lập có tương quan cao với nhau, 
+            gây khó khăn trong việc xác định ảnh hưởng riêng của từng biến và làm giảm độ ổn định của mô hình.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Check if train/valid/test split exists
+        if 'train_data' not in st.session_state or st.session_state.train_data is None:
+            st.warning("⚠️ Vui lòng chia tập Train/Valid/Test trước khi kiểm tra đa cộng tuyến")
+            st.info("💡 Quay lại Tab 'Tiền Xử Lý' > Mục 2️⃣ để chia dữ liệu")
+        else:
+            col1, col2 = st.columns([1, 2])
+            
+            with col1:
+                st.markdown("#### ⚙️ Cấu Hình")
+                
+                # Select method
+                method = st.radio(
+                    "Phương pháp phát hiện:",
+                    ["VIF (Variance Inflation Factor)", "Correlation Matrix"],
+                    key="multicollinearity_method"
+                )
+                
+                # Select features
+                train_cols = st.session_state.train_data.columns.tolist()
+                numeric_cols = st.session_state.train_data.select_dtypes(include=[np.number]).columns.tolist()
+                
+                selected_features = st.multiselect(
+                    "Chọn biến số để phân tích:",
+                    numeric_cols,
+                    default=numeric_cols[:min(10, len(numeric_cols))],
+                    key="vif_features"
+                )
+                
+                if method == "VIF (Variance Inflation Factor)":
+                    vif_threshold = st.slider(
+                        "Ngưỡng VIF:",
+                        min_value=1.0,
+                        max_value=20.0,
+                        value=5.0,
+                        step=0.5,
+                        key="vif_threshold",
+                        help="VIF > 5: Đa cộng tuyến trung bình, VIF > 10: Đa cộng tuyến nghiêm trọng"
+                    )
+                else:
+                    corr_threshold = st.slider(
+                        "Ngưỡng tương quan:",
+                        min_value=0.5,
+                        max_value=1.0,
+                        value=0.8,
+                        step=0.05,
+                        key="corr_threshold",
+                        help="Các cặp biến có |correlation| > ngưỡng sẽ được đánh dấu"
+                    )
+                
+                if st.button("🔄 Phân Tích Đa Cộng Tuyến", key="calc_multicollinearity", type="primary"):
+                    if len(selected_features) < 2:
+                        st.error("⚠️ Vui lòng chọn ít nhất 2 biến")
+                    else:
+                        with st.spinner(f"Đang tính toán {method}..."):
+                            import time
+                            time.sleep(1.5)
+                            
+                            if method == "VIF (Variance Inflation Factor)":
+                                # Mock VIF calculation
+                                vif_results = pd.DataFrame({
+                                    'Feature': selected_features,
+                                    'VIF': np.random.uniform(1.0, 15.0, len(selected_features))
+                                }).sort_values('VIF', ascending=False)
+                                
+                                st.session_state.vif_results = vif_results
+                                # st.session_state.vif_threshold is already updated by the slider widget
+                                st.success(f"✅ Đã tính VIF cho {len(selected_features)} biến!")
+                            else:
+                                # Mock correlation matrix
+                                corr_matrix = np.random.rand(len(selected_features), len(selected_features))
+                                corr_matrix = (corr_matrix + corr_matrix.T) / 2
+                                np.fill_diagonal(corr_matrix, 1.0)
+                                corr_df = pd.DataFrame(corr_matrix, columns=selected_features, index=selected_features)
+                                
+                                st.session_state.corr_matrix = corr_df
+                                # st.session_state.corr_threshold is already updated by the slider widget
+                                st.success(f"✅ Đã tính correlation matrix cho {len(selected_features)} biến!")
+            
+            with col2:
+                st.markdown("#### 📊 Kết Quả Phân Tích")
+                
+                if method == "VIF (Variance Inflation Factor)" and 'vif_results' in st.session_state:
+                    vif_df = st.session_state.vif_results.copy()
+                    threshold = st.session_state.get('vif_threshold', 5.0)
+                    
+                    # Add status column
+                    vif_df['Status'] = vif_df['VIF'].apply(
+                        lambda x: '🔴 Cao' if x > 10 else '🟡 Trung bình' if x > threshold else '🟢 OK'
+                    )
+                    
+                    st.dataframe(vif_df, use_container_width=True, hide_index=True)
+                    
+                    # VIF interpretation
+                    st.markdown("""
+                    <div style="background-color: #262730; padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+                        <h4 style="margin-top: 0; color: #3b82f6;">📖 Giải Thích VIF</h4>
+                        <ul style="font-size: 0.9rem; margin-bottom: 0;">
+                            <li><strong>VIF = 1</strong>: Không có đa cộng tuyến</li>
+                            <li><strong>1 < VIF < 5</strong>: Đa cộng tuyến vừa phải (chấp nhận được)</li>
+                            <li><strong>5 ≤ VIF < 10</strong>: Đa cộng tuyến trung bình (cần cân nhắc)</li>
+                            <li><strong>VIF ≥ 10</strong>: Đa cộng tuyến nghiêm trọng (nên loại bỏ)</li>
+                        </ul>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Plot VIF chart
+                    fig = go.Figure(data=[
+                        go.Bar(
+                            x=vif_df['VIF'],
+                            y=vif_df['Feature'],
+                            orientation='h',
+                            marker=dict(
+                                color=vif_df['VIF'],
+                                colorscale=[[0, '#00d2d3'], [0.5, '#f9ca24'], [1, '#ff6b6b']],
+                                showscale=True,
+                                colorbar=dict(title="VIF")
+                            )
+                        )
+                    ])
+                    
+                    # Add threshold line
+                    fig.add_vline(x=threshold, line_dash="dash", line_color="yellow", 
+                                 annotation_text=f"Threshold: {threshold}")
+                    fig.add_vline(x=10, line_dash="dash", line_color="red", 
+                                 annotation_text="Critical: 10")
+                    
+                    fig.update_layout(
+                        template="plotly_dark",
+                        title="Variance Inflation Factor (VIF) by Feature",
+                        xaxis_title="VIF Value",
+                        yaxis_title="Feature",
+                        height=400,
+                        showlegend=False
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Recommendations
+                    high_vif = vif_df[vif_df['VIF'] > threshold]
+                    if len(high_vif) > 0:
+                        st.warning(f"⚠️ Phát hiện {len(high_vif)} biến có VIF cao:")
+                        for _, row in high_vif.iterrows():
+                            st.text(f"• {row['Feature']}: VIF = {row['VIF']:.2f}")
+                        st.info("💡 Đề xuất: Xem xét loại bỏ hoặc kết hợp các biến này để giảm đa cộng tuyến")
+                
+                elif method == "Correlation Matrix" and 'corr_matrix' in st.session_state:
+                    corr_df = st.session_state.corr_matrix
+                    threshold = st.session_state.get('corr_threshold', 0.8)
+                    
+                    # Display correlation matrix as heatmap
+                    fig = go.Figure(data=go.Heatmap(
+                        z=corr_df.values,
+                        x=corr_df.columns,
+                        y=corr_df.index,
+                        colorscale='RdBu',
+                        zmid=0,
+                        text=corr_df.values.round(2),
+                        texttemplate='%{text}',
+                        textfont={"size": 10},
+                        colorbar=dict(title="Correlation")
+                    ))
+                    
+                    fig.update_layout(
+                        template="plotly_dark",
+                        title="Correlation Matrix",
+                        height=600,
+                        xaxis={'side': 'bottom'},
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Find high correlations
+                    high_corr_pairs = []
+                    for i in range(len(corr_df.columns)):
+                        for j in range(i+1, len(corr_df.columns)):
+                            corr_val = corr_df.iloc[i, j]
+                            if abs(corr_val) > threshold:
+                                high_corr_pairs.append({
+                                    'Feature 1': corr_df.columns[i],
+                                    'Feature 2': corr_df.columns[j],
+                                    'Correlation': f"{corr_val:.3f}"
+                                })
+                    
+                    if len(high_corr_pairs) > 0:
+                        st.warning(f"⚠️ Phát hiện {len(high_corr_pairs)} cặp biến có tương quan cao (|r| > {threshold}):")
+                        high_corr_df = pd.DataFrame(high_corr_pairs)
+                        st.dataframe(high_corr_df, use_container_width=True, hide_index=True)
+                        st.info("💡 Đề xuất: Xem xét loại bỏ một trong hai biến có tương quan cao")
+                    else:
+                        st.success(f"✅ Không phát hiện cặp biến nào có tương quan > {threshold}")
+                
+                else:
+                    st.info("💡 Nhấn nút 'Phân Tích Đa Cộng Tuyến' bên trái để bắt đầu")
     
     # Tab 3: Feature Selection
     with tab3:

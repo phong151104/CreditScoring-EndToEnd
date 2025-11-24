@@ -8,9 +8,6 @@ from pathlib import Path
 import sys
 
 # Enable debug logging
-print("=" * 50)
-print("DEBUG: Starting Credit Scoring App")
-print("=" * 50)
 sys.stdout.flush()
 
 # Cấu hình trang
@@ -26,21 +23,16 @@ from utils.ui_components import load_custom_css, render_header
 import sys
 
 # Enable logging
-print("="*50, file=sys.stderr)
-print("APP STARTING...", file=sys.stderr)
-print("="*50, file=sys.stderr)
 
 # Load CSS tùy chỉnh
 try:
     load_custom_css()
-    print("✓ CSS loaded", file=sys.stderr)
 except Exception as e:
     print(f"✗ CSS error: {e}", file=sys.stderr)
 
 # Render header
 try:
     render_header()
-    print("✓ Header rendered", file=sys.stderr)
 except Exception as e:
     print(f"✗ Header error: {e}", file=sys.stderr)
     st.markdown("# CREDIT SCORING SYSTEM")
@@ -109,41 +101,27 @@ with st.sidebar:
     st.caption("© 2025 Credit Scoring System v1.0")
 
 # Định tuyến trang với logging
-print(f"\n>>> Routing to page: {page}", file=sys.stderr)
 
 try:
     if page == "◉ Dashboard":
-        print("Loading home page...", file=sys.stderr)
         from views import home
         home.render()
-        print("✓ Home page rendered", file=sys.stderr)
     elif page == "↑ Data Upload & Analysis":
-        print("Loading upload_eda page...", file=sys.stderr)
         from views import upload_eda
         upload_eda.render()
-        print("✓ Upload page rendered", file=sys.stderr)
     elif page == "⚡ Feature Engineering":
-        print("Loading feature_engineering page...", file=sys.stderr)
         from views import feature_engineering
         feature_engineering.render()
-        print("✓ Feature page rendered", file=sys.stderr)
     elif page == "◈ Model Training":
-        print("Loading model_training page...", file=sys.stderr)
         from views import model_training
         model_training.render()
-        print("✓ Training page rendered", file=sys.stderr)
     elif page == "◐ Model Explanation":
-        print("Loading shap_explanation page...", file=sys.stderr)
         from views import shap_explanation
         shap_explanation.render()
-        print("✓ SHAP page rendered", file=sys.stderr)
     elif page == "◎ Prediction & Advisory":
-        print("Loading prediction page...", file=sys.stderr)
         from views import prediction
         prediction.render()
-        print("✓ Prediction page rendered", file=sys.stderr)
 except Exception as e:
-    print(f"\n✗✗✗ ERROR in page rendering: {e}", file=sys.stderr)
     import traceback
     traceback.print_exc(file=sys.stderr)
     st.error(f"Error loading page: {e}")
