@@ -21,6 +21,15 @@ def init_session_state():
     if 'model_type' not in st.session_state:
         st.session_state.model_type = None
     
+    if 'selected_model_name' not in st.session_state:
+        st.session_state.selected_model_name = None
+    
+    if 'selected_model_timestamp' not in st.session_state:
+        st.session_state.selected_model_timestamp = None
+    
+    if 'selected_model_idx' not in st.session_state:
+        st.session_state.selected_model_idx = None
+    
     if 'model_metrics' not in st.session_state:
         st.session_state.model_metrics = {}
     
@@ -29,6 +38,32 @@ def init_session_state():
     
     if 'shap_values' not in st.session_state:
         st.session_state.shap_values = None
+    
+    # SHAP computed data
+    if 'shap_explainer_obj' not in st.session_state:
+        st.session_state.shap_explainer_obj = None
+    
+    if 'shap_values_computed' not in st.session_state:
+        st.session_state.shap_values_computed = None
+    
+    if 'shap_X_explained' not in st.session_state:
+        st.session_state.shap_X_explained = None
+    
+    if 'shap_feature_importance' not in st.session_state:
+        st.session_state.shap_feature_importance = None
+    
+    if 'shap_expected_value' not in st.session_state:
+        st.session_state.shap_expected_value = None
+    
+    # SHAP AI Chat
+    if 'shap_chat_history' not in st.session_state:
+        st.session_state.shap_chat_history = []
+    
+    if 'last_ai_analysis' not in st.session_state:
+        st.session_state.last_ai_analysis = None
+    
+    if 'sample_question_selected' not in st.session_state:
+        st.session_state.sample_question_selected = None
     
     # Feature Engineering configurations - persist across page changes
     if 'missing_config' not in st.session_state:

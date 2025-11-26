@@ -7,7 +7,6 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from utils.ui_components import show_processing_placeholder
 from utils.session_state import init_session_state
 
 def render():

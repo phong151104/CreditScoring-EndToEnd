@@ -8,7 +8,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from scipy import stats
-from utils.ui_components import show_llm_analysis, show_processing_placeholder
+from utils.ui_components import show_llm_analysis
 from utils.session_state import init_session_state, clear_data_related_state
 from backend.llm_integration import analyze_eda_with_llm, get_eda_summary, LLMConfig
 

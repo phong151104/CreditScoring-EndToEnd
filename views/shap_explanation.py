@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-from utils.ui_components import show_llm_analysis, show_processing_placeholder
+from utils.ui_components import show_llm_analysis
 from utils.session_state import init_session_state
 
 def render():
@@ -26,24 +26,69 @@ def render():
         st.warning("⚠️ Chưa có mô hình. Vui lòng huấn luyện mô hình trước.")
         return
     
-    st.success(f"✅ Đang phân tích mô hình: {st.session_state.model_type}")
+    # Get the current model name
+    current_model_name = st.session_state.get('selected_model_name', None)
+    if current_model_name is None:
+        current_model_name = st.session_state.get('model_type_select', 'Unknown')
+    
+    st.success(f"✅ Đang phân tích mô hình: {current_model_name}")
     
     st.markdown("---")
     
+    # Get features and data
+    features = st.session_state.selected_features
+    target_col = st.session_state.target_column
+    
+    # Prepare data for SHAP
+    if 'train_data' in st.session_state and st.session_state.train_data is not None:
+        X_data = st.session_state.train_data[features]
+    else:
+        X_data = st.session_state.data[features]
+    
     # SHAP explainer initialization
-    if st.session_state.explainer is None:
+    if st.session_state.get('shap_explainer_obj') is None or st.session_state.get('shap_values_computed') is None:
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             if st.button("🔄 Khởi Tạo SHAP Explainer", use_container_width=True, type="primary"):
-                with st.spinner("Đang khởi tạo SHAP explainer..."):
-                    show_processing_placeholder("Tạo SHAP explainer cho mô hình")
-                    st.session_state.explainer = "initialized"
-                    st.session_state.shap_values = "computed"
-                    st.success("✅ Đã khởi tạo SHAP explainer!")
-                    st.rerun()
+                try:
+                    with st.spinner("Đang tính toán SHAP values... (có thể mất vài phút)"):
+                        from backend.explainability import initialize_shap_explainer
+                        
+                        # Initialize SHAP explainer
+                        explainer, shap_values, X_explained = initialize_shap_explainer(
+                            st.session_state.model,
+                            X_data,
+                            current_model_name
+                        )
+                        
+                        # Save to session state
+                        st.session_state.shap_explainer_obj = explainer
+                        st.session_state.shap_values_computed = shap_values
+                        st.session_state.shap_X_explained = X_explained
+                        st.session_state.shap_feature_importance = explainer.get_feature_importance()
+                        st.session_state.shap_expected_value = explainer.expected_value
+                        
+                        # Also update the placeholder values
+                        st.session_state.explainer = "initialized"
+                        st.session_state.shap_values = "computed"
+                        
+                        st.success("✅ Đã tính toán SHAP values thành công!")
+                        st.rerun()
+                        
+                except Exception as e:
+                    st.error(f"❌ Lỗi khi tính SHAP: {str(e)}")
+                    import traceback
+                    with st.expander("Chi tiết lỗi"):
+                        st.code(traceback.format_exc())
         
         st.info("💡 Nhấn nút trên để tính toán SHAP values cho mô hình")
         return
+    
+    # Get computed SHAP data
+    shap_values = st.session_state.shap_values_computed
+    X_explained = st.session_state.shap_X_explained
+    feature_importance_df = st.session_state.shap_feature_importance
+    expected_value = st.session_state.shap_expected_value
     
     # Tabs
     tab1, tab2, tab3 = st.tabs([
@@ -57,30 +102,28 @@ def render():
         st.markdown("### 🌍 Global Feature Importance")
         st.markdown("Mức độ quan trọng tổng thể của các đặc trưng đối với mô hình.")
         
-        # Mock feature importance data
-        features = st.session_state.selected_features[:15] if len(st.session_state.selected_features) >= 15 else st.session_state.selected_features
-        importance_values = np.random.random(len(features))
-        importance_values = np.sort(importance_values)[::-1]
-        
         col1, col2 = st.columns([2, 1])
         
         with col1:
             st.markdown("#### 📊 SHAP Summary Plot")
             
-            # Create summary plot (bar chart)
+            # Create summary plot (bar chart) using real SHAP values
             fig = go.Figure()
             
+            # Sort by importance
+            plot_df = feature_importance_df.head(15).sort_values('Importance', ascending=True)
+            
             fig.add_trace(go.Bar(
-                y=features,
-                x=importance_values,
+                y=plot_df['Feature'],
+                x=plot_df['Importance'],
                 orientation='h',
                 marker=dict(
-                    color=importance_values,
+                    color=plot_df['Importance'],
                     colorscale='Viridis',
                     showscale=True,
                     colorbar=dict(title="Impact")
                 ),
-                text=[f"{val:.3f}" for val in importance_values],
+                text=[f"{val:.3f}" for val in plot_df['Importance']],
                 textposition='outside'
             ))
             
@@ -89,7 +132,7 @@ def render():
                 xaxis_title="Mean |SHAP value|",
                 yaxis_title="Features",
                 template="plotly_dark",
-                height=max(400, len(features) * 30),
+                height=max(400, len(plot_df) * 35),
                 showlegend=False
             )
             
@@ -100,21 +143,15 @@ def render():
         with col2:
             st.markdown("#### 📋 Top Features")
             
-            # Top features table
-            importance_df = pd.DataFrame({
-                'Feature': features,
-                'Importance': importance_values
-            }).sort_values('Importance', ascending=False)
-            
             st.dataframe(
-                importance_df.style.format({'Importance': '{:.4f}'})
+                feature_importance_df.style.format({'Importance': '{:.4f}'})
                 .background_gradient(subset=['Importance'], cmap='Reds'),
                 use_container_width=True,
                 height=400
             )
             
             # Download
-            csv = importance_df.to_csv(index=False).encode('utf-8')
+            csv = feature_importance_df.to_csv(index=False).encode('utf-8')
             st.download_button(
                 "📥 Tải SHAP Values",
                 csv,
@@ -124,7 +161,7 @@ def render():
         
         st.markdown("---")
         
-        # SHAP Beeswarm/Violin plot simulation
+        # SHAP Beeswarm/Summary plot
         st.markdown("#### 🎻 SHAP Value Distribution")
         
         selected_feature = st.selectbox(
@@ -133,16 +170,19 @@ def render():
             key="global_feature_select"
         )
         
-        # Mock SHAP value distribution
-        shap_values_dist = np.random.randn(200) * np.random.uniform(0.5, 2.0)
-        feature_values = np.random.randn(200) * 10 + 50
+        # Get feature index
+        feature_idx = features.index(selected_feature)
+        
+        # Get SHAP values and feature values for this feature
+        shap_values_feature = shap_values[:, feature_idx]
+        feature_values = X_explained[selected_feature].values
         
         fig = go.Figure()
         
         # Scatter plot with color based on feature value
         fig.add_trace(go.Scatter(
-            x=shap_values_dist,
-            y=np.random.randn(200) * 0.1,
+            x=shap_values_feature,
+            y=np.random.randn(len(shap_values_feature)) * 0.1,  # Add jitter for visibility
             mode='markers',
             marker=dict(
                 size=8,
@@ -153,7 +193,7 @@ def render():
                 line=dict(width=0.5, color='white')
             ),
             name=selected_feature,
-            text=[f"Value: {v:.2f}<br>SHAP: {s:.3f}" for v, s in zip(feature_values, shap_values_dist)],
+            text=[f"Value: {v:.2f}<br>SHAP: {s:.3f}" for v, s in zip(feature_values, shap_values_feature)],
             hovertemplate='%{text}<extra></extra>'
         ))
         
@@ -188,193 +228,189 @@ def render():
         # Sample selection
         col1, col2 = st.columns([1, 3])
         
+        max_samples = len(X_explained) - 1
+        
         with col1:
             st.markdown("#### 📋 Chọn Mẫu")
             
             sample_selection_method = st.radio(
                 "Phương pháp chọn:",
-                ["Chọn theo index", "Chọn ngẫu nhiên", "Nhập dữ liệu mới"],
+                ["Chọn theo index", "Chọn ngẫu nhiên"],
                 key="sample_method"
             )
             
             if sample_selection_method == "Chọn theo index":
                 sample_idx = st.number_input(
                     "Index mẫu:",
-                    0, len(st.session_state.data) - 1, 0,
+                    0, max_samples, 0,
                     key="sample_idx"
                 )
-            elif sample_selection_method == "Chọn ngẫu nhiên":
+            else:
                 if st.button("🎲 Chọn Ngẫu Nhiên", key="random_sample"):
-                    sample_idx = np.random.randint(0, len(st.session_state.data))
+                    sample_idx = np.random.randint(0, max_samples + 1)
                     st.session_state.current_sample_idx = sample_idx
                 sample_idx = st.session_state.get('current_sample_idx', 0)
-            else:
-                st.info("📝 Nhập dữ liệu mới ở phần dưới")
-                sample_idx = 0
             
             st.markdown(f"**Mẫu đang xem: #{sample_idx}**")
             
-            # Prediction info
-            pred_proba = np.random.uniform(0.3, 0.9)
-            pred_class = 1 if pred_proba > 0.5 else 0
+            # Get local SHAP values
+            sample_shap = shap_values[sample_idx]
+            sample_features = X_explained.iloc[sample_idx]
+            
+            # Calculate prediction
+            base_value = float(expected_value) if isinstance(expected_value, (int, float, np.number)) else 0.5
+            prediction = base_value + sample_shap.sum()
+            pred_proba = 1 / (1 + np.exp(-prediction))  # Sigmoid for probability
             
             st.markdown("---")
             st.markdown("#### 🎯 Dự Đoán")
             
             st.metric("Xác suất", f"{pred_proba:.1%}")
-            st.metric("Phân loại", "✅ Good" if pred_class == 0 else "⚠️ Risk")
+            st.metric("Phân loại", "✅ Good" if pred_proba < 0.5 else "⚠️ Risk")
+            st.metric("Base Value", f"{base_value:.3f}")
         
         with col2:
             st.markdown("#### 💧 SHAP Waterfall Plot")
             
-            # Mock SHAP values for single sample
-            base_value = 0.5
-            shap_values_local = np.random.randn(len(features)) * 0.1
-            shap_values_local = np.sort(shap_values_local)
+            # Sort features by absolute SHAP value
+            sorted_indices = np.argsort(np.abs(sample_shap))[::-1][:10]
+            top_features = [features[i] for i in sorted_indices]
+            top_shap = [sample_shap[i] for i in sorted_indices]
+            top_values = [sample_features.iloc[i] for i in sorted_indices]
             
-            # Create waterfall plot
-            cumsum = np.concatenate([[base_value], base_value + np.cumsum(shap_values_local)])
+            # Create waterfall-like bar chart
+            colors = ['#ff4444' if v < 0 else '#44bb44' for v in top_shap]
             
             fig = go.Figure()
             
-            # Base value
             fig.add_trace(go.Bar(
-                name='Base value',
-                x=['Base'],
-                y=[base_value],
-                marker_color='lightgray',
-                text=[f"{base_value:.3f}"],
-                textposition='outside'
-            ))
-            
-            # Feature contributions
-            colors = ['red' if v < 0 else 'green' for v in shap_values_local]
-            
-            for i, (feat, val) in enumerate(zip(features[:10], shap_values_local[:10])):
-                fig.add_trace(go.Bar(
-                    name=feat,
-                    x=[feat],
-                    y=[abs(val)],
-                    base=[cumsum[i] if val > 0 else cumsum[i] - abs(val)],
-                    marker_color=colors[i],
-                    text=[f"{val:+.3f}"],
-                    textposition='outside'
-                ))
-            
-            # Final prediction
-            fig.add_trace(go.Bar(
-                name='Prediction',
-                x=['Prediction'],
-                y=[cumsum[-1]],
-                marker_color='blue',
-                text=[f"{cumsum[-1]:.3f}"],
+                x=top_shap,
+                y=[f"{feat} = {val:.2f}" for feat, val in zip(top_features, top_values)],
+                orientation='h',
+                marker_color=colors,
+                text=[f"{v:+.3f}" for v in top_shap],
                 textposition='outside'
             ))
             
             fig.update_layout(
                 title=f"SHAP Waterfall - Sample #{sample_idx}",
-                xaxis_title="Features",
-                yaxis_title="Model Output",
+                xaxis_title="SHAP value (impact on prediction)",
+                yaxis_title="Feature = Value",
                 template="plotly_dark",
-                height=500,
-                showlegend=False,
-                barmode='stack'
+                height=450,
+                showlegend=False
             )
             
             st.plotly_chart(fig, use_container_width=True)
+            
+            # Summary
+            st.markdown(f"""
+            <div style="background-color: #262730; padding: 1rem; border-radius: 8px;">
+                <p style="margin: 0;">
+                    <strong>📊 Tổng kết:</strong><br>
+                    • Base value: {base_value:.3f}<br>
+                    • Tổng SHAP: {sample_shap.sum():+.3f}<br>
+                    • Prediction: {prediction:.3f} → Xác suất: {pred_proba:.1%}
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
         
         st.markdown("---")
         
-        # Feature values for selected sample
-        st.markdown("#### 📊 Giá Trị Đặc Trưng Của Mẫu")
+        # Feature contributions table
+        st.markdown("#### 📊 Chi Tiết Đóng Góp Của Các Đặc Trưng")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            # Top positive impacts
-            st.markdown("##### ⬆️ Top Tác Động Tích Cực")
+            st.markdown("##### ⬆️ Top Tác Động Tích Cực (Tăng rủi ro)")
             
-            positive_impacts = []
-            for i, (feat, shap_val) in enumerate(zip(features, shap_values_local)):
-                if shap_val > 0:
-                    positive_impacts.append({
-                        'Feature': feat,
-                        'SHAP Value': shap_val,
-                        'Feature Value': np.random.uniform(10, 100)
-                    })
-            
-            if positive_impacts:
-                pos_df = pd.DataFrame(positive_impacts).sort_values('SHAP Value', ascending=False).head(5)
+            positive_mask = sample_shap > 0
+            if positive_mask.any():
+                pos_indices = np.where(positive_mask)[0]
+                pos_sorted = pos_indices[np.argsort(sample_shap[pos_indices])[::-1]][:5]
+                
+                pos_data = [{
+                    'Feature': features[i],
+                    'Value': sample_features.iloc[i],
+                    'SHAP Value': sample_shap[i]
+                } for i in pos_sorted]
+                
+                pos_df = pd.DataFrame(pos_data)
                 st.dataframe(
                     pos_df.style.format({
                         'SHAP Value': '{:+.4f}',
-                        'Feature Value': '{:.2f}'
-                    }).background_gradient(subset=['SHAP Value'], cmap='Greens'),
+                        'Value': '{:.2f}'
+                    }).background_gradient(subset=['SHAP Value'], cmap='Reds'),
                     use_container_width=True
                 )
             else:
                 st.info("Không có tác động tích cực")
         
         with col2:
-            # Top negative impacts
-            st.markdown("##### ⬇️ Top Tác Động Tiêu Cực")
+            st.markdown("##### ⬇️ Top Tác Động Tiêu Cực (Giảm rủi ro)")
             
-            negative_impacts = []
-            for i, (feat, shap_val) in enumerate(zip(features, shap_values_local)):
-                if shap_val < 0:
-                    negative_impacts.append({
-                        'Feature': feat,
-                        'SHAP Value': shap_val,
-                        'Feature Value': np.random.uniform(10, 100)
-                    })
-            
-            if negative_impacts:
-                neg_df = pd.DataFrame(negative_impacts).sort_values('SHAP Value').head(5)
+            negative_mask = sample_shap < 0
+            if negative_mask.any():
+                neg_indices = np.where(negative_mask)[0]
+                neg_sorted = neg_indices[np.argsort(sample_shap[neg_indices])][:5]
+                
+                neg_data = [{
+                    'Feature': features[i],
+                    'Value': sample_features.iloc[i],
+                    'SHAP Value': sample_shap[i]
+                } for i in neg_sorted]
+                
+                neg_df = pd.DataFrame(neg_data)
                 st.dataframe(
                     neg_df.style.format({
                         'SHAP Value': '{:+.4f}',
-                        'Feature Value': '{:.2f}'
-                    }).background_gradient(subset=['SHAP Value'], cmap='Reds'),
+                        'Value': '{:.2f}'
+                    }).background_gradient(subset=['SHAP Value'], cmap='Greens'),
                     use_container_width=True
                 )
             else:
                 st.info("Không có tác động tiêu cực")
         
-        # Force plot alternative
+        # All features table
         st.markdown("---")
-        st.markdown("#### 🎨 SHAP Force Plot")
+        st.markdown("#### 📋 Tất Cả Đặc Trưng")
         
-        # Create force plot visualization
-        sorted_indices = np.argsort(np.abs(shap_values_local))[::-1][:10]
-        sorted_features = [features[i] for i in sorted_indices]
-        sorted_shap = [shap_values_local[i] for i in sorted_indices]
+        all_contributions = pd.DataFrame({
+            'Feature': features,
+            'Value': [sample_features.iloc[i] for i in range(len(features))],
+            'SHAP Value': sample_shap
+        }).sort_values('SHAP Value', key=abs, ascending=False)
         
-        fig = go.Figure()
-        
-        colors = ['#ff4444' if v < 0 else '#44ff44' for v in sorted_shap]
-        
-        fig.add_trace(go.Bar(
-            x=sorted_shap,
-            y=sorted_features,
-            orientation='h',
-            marker_color=colors,
-            text=[f"{v:+.3f}" for v in sorted_shap],
-            textposition='outside'
-        ))
-        
-        fig.update_layout(
-            title="Force Plot - Top Contributing Features",
-            xaxis_title="SHAP value (impact on prediction)",
-            template="plotly_dark",
-            height=400
+        st.dataframe(
+            all_contributions.style.format({
+                'SHAP Value': '{:+.4f}',
+                'Value': '{:.2f}'
+            }),
+            use_container_width=True,
+            height=300
         )
-        
-        st.plotly_chart(fig, use_container_width=True)
     
     # Tab 3: AI Interpretation
     with tab3:
         st.markdown("### 🤖 Giải Thích Bằng AI")
-        st.markdown("Phân tích và diễn giải kết quả SHAP bằng ngôn ngữ tự nhiên.")
+        st.markdown("Phân tích và diễn giải kết quả SHAP bằng ngôn ngữ tự nhiên với Google Gemini AI.")
+        
+        # Import SHAP Analyzer
+        from backend.llm_integration import create_shap_analyzer, LLMConfig
+        
+        # Check API configuration (Google Gemini)
+        api_configured = LLMConfig.GOOGLE_API_KEY is not None
+        if api_configured:
+            st.success(f"✅ Đã kết nối với Google Gemini ({LLMConfig.GOOGLE_MODEL})")
+        else:
+            st.warning("⚠️ Chưa cấu hình GOOGLE_API_KEY. Sử dụng phân tích tự động (hạn chế). Xem file `env.example` để cấu hình.")
+        
+        # Get model name
+        model_name_display = st.session_state.get('selected_model_name', st.session_state.get('model_type_select', 'Unknown'))
+        
+        # Convert expected_value to scalar for display
+        exp_val_display = float(expected_value[1]) if isinstance(expected_value, np.ndarray) and len(expected_value) > 1 else (float(expected_value[0]) if isinstance(expected_value, np.ndarray) else float(expected_value))
         
         col1, col2 = st.columns([2, 1])
         
@@ -384,164 +420,221 @@ def render():
             analysis_type = st.radio(
                 "Loại phân tích:",
                 ["Global - Tổng quan mô hình", "Local - Giải thích mẫu cụ thể"],
-                key="analysis_type"
+                key="analysis_type",
+                horizontal=True
             )
             
             if analysis_type == "Local - Giải thích mẫu cụ thể":
                 sample_for_analysis = st.number_input(
                     "Chọn mẫu để phân tích:",
-                    0, 100, 0,
+                    0, max_samples, 0,
                     key="analysis_sample"
                 )
             
             if st.button("🤖 Tạo Phân Tích AI", use_container_width=True, type="primary"):
-                with st.spinner("AI đang phân tích SHAP values..."):
-                    if analysis_type == "Global - Tổng quan mô hình":
-                        ai_response = f"""
-                        **🌍 Phân Tích Global - Tổng Quan Mô Hình {st.session_state.model_type}**
+                with st.spinner("🤖 AI đang phân tích SHAP values... (có thể mất vài giây)"):
+                    try:
+                        # Create SHAP Analyzer
+                        shap_analyzer = create_shap_analyzer()
                         
-                        **📊 Đặc trưng quan trọng nhất:**
+                        if analysis_type == "Global - Tổng quan mô hình":
+                            # Call AI for global analysis
+                            ai_response = shap_analyzer.analyze_global(
+                                model_name=model_name_display,
+                                feature_importance=feature_importance_df,
+                                shap_values=shap_values,
+                                expected_value=exp_val_display,
+                                features=features
+                            )
+                        else:
+                            # Call AI for local analysis
+                            ai_response = shap_analyzer.analyze_local(
+                                model_name=model_name_display,
+                                feature_importance=feature_importance_df,
+                                shap_values=shap_values,
+                                expected_value=exp_val_display,
+                                features=features,
+                                sample_data=X_explained,
+                                sample_idx=sample_for_analysis
+                            )
                         
-                        1. **{features[0]}** (Impact: {importance_values[0]:.3f})
-                           - Đây là đặc trưng quan trọng nhất đối với mô hình
-                           - Giá trị cao của đặc trưng này thường tăng xác suất vỡ nợ
-                           - Chiếm {importance_values[0]/importance_values.sum()*100:.1f}% tổng impact
+                        # Store in session state
+                        st.session_state.last_ai_analysis = ai_response
+                        st.session_state.last_analysis_type = analysis_type
                         
-                        2. **{features[1]}** (Impact: {importance_values[1]:.3f})
-                           - Đặc trưng quan trọng thứ 2
-                           - Có mối quan hệ phi tuyến với kết quả dự đoán
-                        
-                        3. **{features[2]}** (Impact: {importance_values[2]:.3f})
-                           - Ảnh hưởng vừa phải nhưng ổn định
-                        
-                        **💡 Nhận xét:**
-                        
-                        - Top 3 đặc trưng chiếm {(importance_values[:3].sum()/importance_values.sum()*100):.1f}% tổng impact
-                        - Mô hình phụ thuộc nhiều vào {features[0]}, cần đảm bảo chất lượng dữ liệu của biến này
-                        - Các biến tài chính có xu hướng quan trọng hơn các biến nhân khẩu học
-                        
-                        **🎯 Khuyến nghị:**
-                        
-                        1. Tập trung thu thập và đảm bảo chất lượng của top features
-                        2. Xem xét feature engineering cho các biến quan trọng
-                        3. Giám sát sự thay đổi của feature importance theo thời gian
-                        
-                        ⚡ *Đây là phân tích mô phỏng. Backend sẽ tích hợp LLM để phân tích chi tiết.*
-                        """
-                    else:
-                        ai_response = f"""
-                        **🎯 Phân Tích Local - Mẫu #{sample_for_analysis}**
-                        
-                        **📋 Thông tin dự đoán:**
-                        - Xác suất: {np.random.uniform(0.3, 0.9):.1%}
-                        - Phân loại: {"✅ Tín dụng tốt" if np.random.random() > 0.5 else "⚠️ Rủi ro cao"}
-                        
-                        **🔍 Các yếu tố chính:**
-                        
-                        **Tác động tích cực (giảm rủi ro):**
-                        • {features[0]}: Giá trị cao hơn trung bình, giúp giảm 15% xác suất vỡ nợ
-                        • {features[1]}: Trong khoảng an toàn, đóng góp tích cực
-                        
-                        **Tác động tiêu cực (tăng rủi ro):**
-                        • {features[2]}: Giá trị thấp bất thường, làm tăng 20% xác suất vỡ nợ
-                        • {features[3]}: Vượt ngưỡng cảnh báo, cần xem xét kỹ
-                        
-                        **💭 Tổng kết:**
-                        
-                        Mẫu này có {"rủi ro thấp" if np.random.random() > 0.5 else "rủi ro cao"} do ảnh hưởng tổng hợp của các yếu tố.
-                        Yếu tố quyết định chính là {features[0]}.
-                        
-                        **💡 Gợi ý cải thiện:**
-                        1. Tăng giá trị của {features[2]} lên mức trung bình
-                        2. Giảm {features[3]} xuống dưới ngưỡng cảnh báo
-                        3. Duy trì {features[0]} ở mức hiện tại
-                        
-                        ⚡ *Đây là phân tích mô phỏng.*
-                        """
-                    
-                    show_llm_analysis("Phân tích SHAP values", ai_response)
+                    except Exception as e:
+                        ai_response = f"❌ Lỗi khi phân tích: {str(e)}"
+                        st.session_state.last_ai_analysis = ai_response
+            
+            # Display last analysis
+            if 'last_ai_analysis' in st.session_state and st.session_state.last_ai_analysis:
+                with st.expander("🔍 Phân Tích Tự Động (AI Analysis)", expanded=True):
+                    st.markdown(st.session_state.last_ai_analysis)
         
         with col2:
-            st.markdown("#### ⚙️ Cấu Hình AI")
+            st.markdown("#### ⚙️ Thông Tin SHAP")
             
-            st.markdown("""
+            st.markdown(f"""
             <div style="background-color: #262730; padding: 1rem; border-radius: 8px;">
-                <h4 style="margin-top: 0; color: #667eea;">🤖 LLM Settings</h4>
+                <h4 style="margin-top: 0; color: #667eea;">📊 SHAP Statistics</h4>
                 <p style="font-size: 0.9rem; margin-bottom: 0;">
-                    Backend sẽ tích hợp LLM để:<br><br>
-                    • Diễn giải SHAP values<br>
-                    • Giải thích mối quan hệ giữa features<br>
-                    • Đưa ra gợi ý cải thiện<br>
-                    • Tạo báo cáo tự động<br>
-                    • Trả lời câu hỏi về mô hình
+                    • Số mẫu đã tính: {len(X_explained)}<br>
+                    • Số features: {len(features)}<br>
+                    • Expected value: {exp_val_display:.4f}<br>
+                    • Mean |SHAP|: {np.abs(shap_values).mean():.4f}<br>
+                    • Max |SHAP|: {np.abs(shap_values).max():.4f}
                 </p>
             </div>
             """, unsafe_allow_html=True)
             
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # LLM provider selection (placeholder)
-            llm_provider = st.selectbox(
-                "LLM Provider:",
-                ["OpenAI GPT-4", "Anthropic Claude", "Local LLM"],
-                key="llm_provider"
-            )
-            
-            temperature = st.slider(
-                "Temperature:",
-                0.0, 1.0, 0.3, 0.1,
-                key="llm_temp"
-            )
-            
-            max_tokens = st.number_input(
-                "Max tokens:",
-                100, 2000, 500,
-                key="llm_tokens"
-            )
-            
-            st.markdown("---")
-            show_processing_placeholder("Tích hợp LLM API cho phân tích tự động")
+            # Recalculate button
+            if st.button("🔄 Tính Lại SHAP", use_container_width=True):
+                st.session_state.shap_explainer_obj = None
+                st.session_state.shap_values_computed = None
+                st.session_state.explainer = None
+                st.session_state.shap_values = None
+                st.session_state.last_ai_analysis = None
+                st.session_state.shap_chat_history = []
+                st.rerun()
         
         st.markdown("---")
         
-        # Interactive Q&A
-        st.markdown("#### 💬 Hỏi Đáp Về Mô Hình")
+        # Interactive Chat Q&A
+        st.markdown("#### 💬 Chat Với AI Về Mô Hình")
         
         st.markdown("""
         <div style="background-color: #262730; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-            <p style="margin: 0;">💡 Đặt câu hỏi về mô hình và nhận câu trả lời từ AI dựa trên SHAP analysis.</p>
+            <p style="margin: 0;">💡 Đặt câu hỏi về mô hình và nhận câu trả lời từ AI dựa trên SHAP analysis thực tế.</p>
         </div>
         """, unsafe_allow_html=True)
         
-        user_question = st.text_input(
-            "Câu hỏi của bạn:",
-            placeholder="Ví dụ: Tại sao mô hình dự đoán mẫu này có rủi ro cao?",
-            key="user_question"
-        )
+        # Initialize chat history
+        if 'shap_chat_history' not in st.session_state:
+            st.session_state.shap_chat_history = []
         
-        if st.button("💬 Gửi Câu Hỏi", key="send_question"):
-            if user_question:
-                with st.spinner("🤖 AI đang suy nghĩ..."):
-                    mock_answer = f"""
-                    **Câu hỏi:** {user_question}
-                    
-                    **Trả lời:**
-                    
-                    Dựa trên phân tích SHAP, tôi có thể giải thích như sau:
-                    
-                    Mô hình {st.session_state.model_type} đưa ra dự đoán dựa trên sự kết hợp của nhiều yếu tố. 
-                    Trong trường hợp này, yếu tố quan trọng nhất là {features[0]}, với SHAP value {importance_values[0]:.3f}.
-                    
-                    Các yếu tố khác cũng đóng góp vào quyết định cuối cùng theo thứ tự quan trọng giảm dần.
-                    
-                    💡 *Đây là câu trả lời mô phỏng. Backend sẽ tích hợp LLM để trả lời chính xác.*
-                    """
-                    
+        # Display chat history
+        chat_container = st.container()
+        with chat_container:
+            for msg in st.session_state.shap_chat_history:
+                if msg['role'] == 'user':
                     st.markdown(f"""
-                    <div style="background-color: #1e3c72; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #667eea;">
-                        {mock_answer}
+                    <div style="background-color: #1e3c72; padding: 1rem; border-radius: 10px; margin-bottom: 0.5rem; border-left: 4px solid #667eea;">
+                        <strong>🧑 Bạn:</strong> {msg['content']}
                     </div>
                     """, unsafe_allow_html=True)
-            else:
-                st.warning("Vui lòng nhập câu hỏi!")
+                else:
+                    st.markdown(f"""
+                    <div style="background-color: #262730; padding: 1rem; border-radius: 10px; margin-bottom: 0.5rem; border-left: 4px solid #44bb44;">
+                        <strong>🤖 AI:</strong>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.markdown(msg['content'])
+        
+        # Chat input
+        col_input, col_btn = st.columns([4, 1])
+        with col_input:
+            user_question = st.text_input(
+                "Câu hỏi của bạn:",
+                placeholder="Ví dụ: Tại sao loan_term_months là feature quan trọng nhất?",
+                key="user_question",
+                label_visibility="collapsed"
+            )
+        with col_btn:
+            send_clicked = st.button("📤 Gửi", key="send_question", use_container_width=True, type="primary")
+        
+        if send_clicked and user_question:
+            with st.spinner("🤖 AI đang suy nghĩ..."):
+                try:
+                    # Create SHAP Analyzer
+                    shap_analyzer = create_shap_analyzer()
+                    
+                    # Call AI chat
+                    ai_answer = shap_analyzer.chat(
+                        user_question=user_question,
+                        model_name=model_name_display,
+                        feature_importance=feature_importance_df,
+                        shap_values=shap_values,
+                        expected_value=exp_val_display,
+                        features=features,
+                        sample_data=X_explained,
+                        conversation_history=st.session_state.shap_chat_history
+                    )
+                    
+                    # Add to history
+                    st.session_state.shap_chat_history.append({
+                        'role': 'user',
+                        'content': user_question
+                    })
+                    st.session_state.shap_chat_history.append({
+                        'role': 'assistant',
+                        'content': ai_answer
+                    })
+                    
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"❌ Lỗi: {str(e)}")
+        elif send_clicked and not user_question:
+            st.warning("Vui lòng nhập câu hỏi!")
+        
+        # Clear chat button
+        if st.session_state.shap_chat_history:
+            if st.button("🗑️ Xóa Lịch Sử Chat", key="clear_chat"):
+                st.session_state.shap_chat_history = []
+                st.rerun()
+        
+        # Sample questions
+        st.markdown("---")
+        st.markdown("##### 💡 Câu Hỏi Gợi Ý")
+        
+        sample_questions = [
+            "Tại sao feature quan trọng nhất lại ảnh hưởng nhiều đến dự đoán?",
+            "Mô hình có thể có bias không? Giải thích.",
+            "Làm sao để cải thiện độ chính xác dựa trên SHAP analysis?",
+            "So sánh tác động của top 3 features",
+            "Khách hàng cần làm gì để giảm rủi ro tín dụng?"
+        ]
+        
+        cols = st.columns(2)
+        for i, q in enumerate(sample_questions):
+            with cols[i % 2]:
+                if st.button(f"💬 {q[:40]}...", key=f"sample_q_{i}", use_container_width=True):
+                    st.session_state.sample_question_selected = q
+                    st.rerun()
+        
+        # Handle sample question selection
+        if 'sample_question_selected' in st.session_state and st.session_state.sample_question_selected:
+            selected_q = st.session_state.sample_question_selected
+            st.session_state.sample_question_selected = None  # Clear
+            
+            with st.spinner("🤖 AI đang suy nghĩ..."):
+                try:
+                    shap_analyzer = create_shap_analyzer()
+                    
+                    ai_answer = shap_analyzer.chat(
+                        user_question=selected_q,
+                        model_name=model_name_display,
+                        feature_importance=feature_importance_df,
+                        shap_values=shap_values,
+                        expected_value=exp_val_display,
+                        features=features,
+                        sample_data=X_explained,
+                        conversation_history=st.session_state.shap_chat_history
+                    )
+                    
+                    st.session_state.shap_chat_history.append({
+                        'role': 'user',
+                        'content': selected_q
+                    })
+                    st.session_state.shap_chat_history.append({
+                        'role': 'assistant',
+                        'content': ai_answer
+                    })
+                    
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"❌ Lỗi: {str(e)}")
 

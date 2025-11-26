@@ -7,7 +7,6 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-from utils.ui_components import show_processing_placeholder
 from utils.session_state import init_session_state
 
 def render():
@@ -65,7 +64,7 @@ def render():
                     "CatBoost",
                     "Gradient Boosting"
                 ],
-                key="model_type"
+                key="model_type_select"
             )
             
             st.markdown("---")
@@ -86,7 +85,7 @@ def render():
             # Check if we need to apply tuned params (clear widget keys to force new defaults)
             if st.session_state.get('apply_tuned_params_flag', False):
                 # Clear widget keys to reset to new defaults
-                keys_to_clear = ['lr_c', 'lr_iter', 'n_trees', 'max_depth', 'lr', 'subsample', 'min_samples_split']
+                keys_to_clear = ['lr_c', 'lr_iter', 'n_trees', 'max_depth', 'lr', 'subsample', 'min_samples_split', 'unlimited_depth']
                 for key in keys_to_clear:
                     if key in st.session_state:
                         del st.session_state[key]
@@ -123,16 +122,36 @@ def render():
                 default_max_depth = tuned_params.get('max_depth', tuned_params.get('depth', 6))
                 default_learning_rate = tuned_params.get('learning_rate', 0.1)
                 default_subsample = tuned_params.get('subsample', 0.8)
+                
+                # Check if max_depth is unlimited (-1 or None)
+                is_unlimited_depth = default_max_depth == -1 or default_max_depth is None
+                
                 # Clamp values
                 default_n_estimators = max(50, min(500, default_n_estimators))
                 if default_max_depth is None or default_max_depth == -1:
-                    default_max_depth = 6
+                    default_max_depth = 6  # Default for slider display
                 default_max_depth = max(3, min(20, default_max_depth))
                 default_learning_rate = max(0.01, min(0.3, default_learning_rate))
                 default_subsample = max(0.5, min(1.0, default_subsample))
                 
                 n_estimators = st.slider("Số cây (n_estimators):", 50, 500, int(default_n_estimators), 10, key="n_trees")
-                max_depth = st.slider("Độ sâu tối đa:", 3, 20, int(default_max_depth), 1, key="max_depth")
+                
+                # For LightGBM, allow unlimited depth option
+                if model_type == "LightGBM":
+                    unlimited_depth = st.checkbox(
+                        "🔓 Không giới hạn độ sâu (max_depth = -1)", 
+                        value=is_unlimited_depth,
+                        key="unlimited_depth",
+                        help="Trong LightGBM, max_depth=-1 cho phép cây phát triển không giới hạn. Có thể tăng hiệu suất nhưng cũng tăng nguy cơ overfitting."
+                    )
+                    if unlimited_depth:
+                        max_depth = -1
+                        st.info("💡 Độ sâu không giới hạn - cây sẽ phát triển dựa trên num_leaves")
+                    else:
+                        max_depth = st.slider("Độ sâu tối đa:", 3, 20, int(default_max_depth), 1, key="max_depth")
+                else:
+                    max_depth = st.slider("Độ sâu tối đa:", 3, 20, int(default_max_depth), 1, key="max_depth")
+                
                 learning_rate = st.slider("Learning rate:", 0.01, 0.3, float(default_learning_rate), 0.01, key="lr")
                 subsample = st.slider("Subsample:", 0.5, 1.0, float(default_subsample), 0.1, key="subsample")
             
@@ -142,8 +161,6 @@ def render():
             if st.button("🚀 Huấn Luyện Mô Hình", type="primary", use_container_width=True):
                 try:
                     with st.spinner(f"Đang huấn luyện {model_type}..."):
-                        show_processing_placeholder(f"Train {model_type} với {len(st.session_state.selected_features)} features")
-                        
                         # Prepare data
                         target_col = st.session_state.target_column
                         features = st.session_state.selected_features
@@ -187,9 +204,9 @@ def render():
                         )
                         
                         # Save model info to session
-                        # st.session_state.model_type is already updated by the widget
                         st.session_state.model = model
                         st.session_state.model_metrics = metrics
+                        st.session_state.selected_model_name = model_type
                         
                         # Add to history
                         import datetime
@@ -204,6 +221,10 @@ def render():
                             'Params': str(params)
                         }
                         st.session_state.model_history.append(history_entry)
+                        
+                        # Auto-select the newly trained model
+                        st.session_state.selected_model_idx = len(st.session_state.model_history) - 1
+                        st.session_state.selected_model_timestamp = history_entry['Timestamp']
                         
                         st.success(f"✅ Đã huấn luyện {model_type} thành công!")
                         st.balloons()
@@ -231,14 +252,18 @@ def render():
             </div>
             """, unsafe_allow_html=True)
             
-            # Current configuration summary
-            if st.session_state.model is not None:
+            # Current configuration summary - use selected_model_name if available
+            current_model_display = st.session_state.get('selected_model_name', None)
+            if current_model_display is None and st.session_state.model is not None:
+                current_model_display = st.session_state.get('model_type_select', 'Unknown')
+            
+            if st.session_state.model is not None and current_model_display:
                 st.markdown("#### ✅ Mô Hình Hiện Tại")
                 
                 st.markdown(f"""
                 <div style="background: linear-gradient(135deg, #1f2937 0%, #345f9c 100%); 
                             padding: 1.5rem; border-radius: 10px;">
-                    <h3 style="margin: 0; color: white;">{st.session_state.model_type}</h3>
+                    <h3 style="margin: 0; color: white;">{current_model_display}</h3>
                     <p style="margin: 0.5rem 0 0 0; color: rgba(255,255,255,0.9);">
                         Đã huấn luyện với {len(st.session_state.selected_features)} features
                     </p>
@@ -275,8 +300,8 @@ def render():
                             X = st.session_state.train_data[features]
                             y = st.session_state.train_data[target_col]
                             
-                            # Get current model type
-                            current_model_type = st.session_state.get('model_type', 'Logistic Regression')
+                            # Get current model type from selectbox
+                            current_model_type = st.session_state.get('model_type_select', 'Logistic Regression')
                             
                             # Collect parameters based on model type
                             params = {}
@@ -353,8 +378,8 @@ def render():
                             X = st.session_state.train_data[features]
                             y = st.session_state.train_data[target_col]
                             
-                            # Get current model type
-                            current_model_type = st.session_state.get('model_type', 'Logistic Regression')
+                            # Get current model type from selectbox
+                            current_model_type = st.session_state.get('model_type_select', 'Logistic Regression')
                             
                             # Import backend
                             from backend.models.trainer import hyperparameter_tuning
@@ -364,9 +389,10 @@ def render():
                                 X, y, current_model_type, tuning_method, tuning_cv_folds
                             )
                             
-                            # Save to session state
+                            # Save to session state and rerun to display results
                             st.session_state.tuning_results = tuning_results
-                            st.rerun()
+                        
+                        st.rerun()
                             
                     except Exception as e:
                         st.error(f"❌ Lỗi khi chạy Hyperparameter Tuning: {str(e)}")
@@ -380,7 +406,16 @@ def render():
                     st.success(f"✅ Đã tìm được tham số tốt nhất!")
                     
                     st.markdown("##### 🏆 Tham Số Tốt Nhất")
-                    st.json(tuning_results['best_params'])
+                    
+                    # Format best params for display with explanations
+                    best_params_display = tuning_results['best_params'].copy()
+                    current_model_type = st.session_state.get('model_type_select', 'Unknown')
+                    
+                    # Add explanation for special values
+                    if 'max_depth' in best_params_display and best_params_display['max_depth'] == -1:
+                        st.info(f"💡 **Lưu ý:** `max_depth = -1` trong {current_model_type} có nghĩa là **không giới hạn độ sâu** (cây sẽ phát triển cho đến khi các leaf nodes đều pure hoặc chứa ít hơn min_samples_split samples). Khi áp dụng, slider sẽ được đặt về giá trị mặc định (6).")
+                    
+                    st.json(best_params_display)
                     
                     st.metric("Best AUC Score", f"{tuning_results['best_score']:.4f}")
                     st.info(f"📊 Đã thử {tuning_results['total_fits']} tổ hợp tham số")
@@ -410,181 +445,185 @@ def render():
         
         if st.session_state.model is None:
             st.warning("⚠️ Chưa có mô hình được huấn luyện. Vui lòng huấn luyện mô hình trước.")
-            return
-        
-        metrics = st.session_state.model_metrics
-        
-        # Metrics overview
-        st.markdown("#### 📈 Các Chỉ Số Đánh Giá")
-        
-        col1, col2, col3, col4, col5 = st.columns(5)
-        
-        with col1:
-            st.metric("Accuracy", f"{metrics['accuracy']:.3f}")
-        with col2:
-            st.metric("Precision", f"{metrics['precision']:.3f}")
-        with col3:
-            st.metric("Recall", f"{metrics['recall']:.3f}")
-        with col4:
-            st.metric("F1-Score", f"{metrics['f1']:.3f}")
-        with col5:
-            st.metric("AUC", f"{metrics['auc']:.3f}")
-        
-        st.markdown("---")
-        
-        # Visualizations
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("#### 📊 Confusion Matrix")
+        else:
+            metrics = st.session_state.model_metrics
             
-            # Mock confusion matrix
-            cm = np.array([
-                [850, 150],
-                [100, 900]
-            ])
+            # Metrics overview
+            st.markdown("#### 📈 Các Chỉ Số Đánh Giá")
             
-            fig = px.imshow(
-                cm,
-                labels=dict(x="Predicted", y="Actual", color="Count"),
-                x=['Negative (0)', 'Positive (1)'],
-                y=['Negative (0)', 'Positive (1)'],
-                text_auto=True,
-                color_continuous_scale='Blues',
-                title="Confusion Matrix"
-            )
+            col1, col2, col3, col4, col5 = st.columns(5)
             
-            fig.update_layout(
-                template="plotly_dark",
-                height=400
-            )
+            with col1:
+                st.metric("Accuracy", f"{metrics['accuracy']:.3f}")
+            with col2:
+                st.metric("Precision", f"{metrics['precision']:.3f}")
+            with col3:
+                st.metric("Recall", f"{metrics['recall']:.3f}")
+            with col4:
+                st.metric("F1-Score", f"{metrics['f1']:.3f}")
+            with col5:
+                st.metric("AUC", f"{metrics['auc']:.3f}")
             
-            st.plotly_chart(fig, use_container_width=True)
+            st.markdown("---")
             
-            # Metrics explanation
-            st.markdown("""
-            <div style="background-color: #262730; padding: 1rem; border-radius: 8px;">
-                <p style="margin: 0; font-size: 0.9rem;">
-                    <strong>True Negative:</strong> {0} | <strong>False Positive:</strong> {1}<br>
-                    <strong>False Negative:</strong> {2} | <strong>True Positive:</strong> {3}
-                </p>
-            </div>
-            """.format(cm[0,0], cm[0,1], cm[1,0], cm[1,1]), unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown("#### 📈 ROC Curve")
+            # Visualizations
+            col1, col2 = st.columns(2)
             
-            # Mock ROC curve
-            fpr = np.linspace(0, 1, 100)
-            tpr = np.sqrt(fpr) * metrics['auc'] + np.random.normal(0, 0.02, 100)
-            tpr = np.clip(tpr, 0, 1)
+            with col1:
+                st.markdown("#### 📊 Confusion Matrix")
+                
+                # Mock confusion matrix
+                cm = np.array([
+                    [850, 150],
+                    [100, 900]
+                ])
+                
+                fig = px.imshow(
+                    cm,
+                    labels=dict(x="Predicted", y="Actual", color="Count"),
+                    x=['Negative (0)', 'Positive (1)'],
+                    y=['Negative (0)', 'Positive (1)'],
+                    text_auto=True,
+                    color_continuous_scale='Blues',
+                    title="Confusion Matrix"
+                )
+                
+                fig.update_layout(
+                    template="plotly_dark",
+                    height=400
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Metrics explanation
+                st.markdown("""
+                <div style="background-color: #262730; padding: 1rem; border-radius: 8px;">
+                    <p style="margin: 0; font-size: 0.9rem;">
+                        <strong>True Negative:</strong> {0} | <strong>False Positive:</strong> {1}<br>
+                        <strong>False Negative:</strong> {2} | <strong>True Positive:</strong> {3}
+                    </p>
+                </div>
+                """.format(cm[0,0], cm[0,1], cm[1,0], cm[1,1]), unsafe_allow_html=True)
             
-            fig = go.Figure()
+            with col2:
+                st.markdown("#### 📈 ROC Curve")
+                
+                # Mock ROC curve
+                fpr = np.linspace(0, 1, 100)
+                tpr = np.sqrt(fpr) * metrics['auc'] + np.random.normal(0, 0.02, 100)
+                tpr = np.clip(tpr, 0, 1)
+                
+                # Get model name for display
+                model_name_roc = st.session_state.get('selected_model_name', st.session_state.get('model_type_select', 'Model'))
+                
+                fig = go.Figure()
+                
+                # ROC curve
+                fig.add_trace(go.Scatter(
+                    x=fpr,
+                    y=tpr,
+                    mode='lines',
+                    name=f'{model_name_roc} (AUC = {metrics["auc"]:.3f})',
+                    line=dict(color='#667eea', width=3)
+                ))
+                
+                # Diagonal line
+                fig.add_trace(go.Scatter(
+                    x=[0, 1],
+                    y=[0, 1],
+                    mode='lines',
+                    name='Random (AUC = 0.5)',
+                    line=dict(color='red', width=2, dash='dash')
+                ))
+                
+                fig.update_layout(
+                    title='ROC Curve',
+                    xaxis_title='False Positive Rate',
+                    yaxis_title='True Positive Rate',
+                    template="plotly_dark",
+                    height=400,
+                    showlegend=True,
+                    legend=dict(x=0.6, y=0.1)
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
             
-            # ROC curve
-            fig.add_trace(go.Scatter(
-                x=fpr,
-                y=tpr,
-                mode='lines',
-                name=f'{st.session_state.model_type} (AUC = {metrics["auc"]:.3f})',
-                line=dict(color='#667eea', width=3)
-            ))
+            st.markdown("---")
             
-            # Diagonal line
-            fig.add_trace(go.Scatter(
-                x=[0, 1],
-                y=[0, 1],
-                mode='lines',
-                name='Random (AUC = 0.5)',
-                line=dict(color='red', width=2, dash='dash')
-            ))
+            # Detailed metrics table
+            col1, col2 = st.columns(2)
             
-            fig.update_layout(
-                title='ROC Curve',
-                xaxis_title='False Positive Rate',
-                yaxis_title='True Positive Rate',
-                template="plotly_dark",
-                height=400,
-                showlegend=True,
-                legend=dict(x=0.6, y=0.1)
-            )
+            with col1:
+                st.markdown("#### 📋 Classification Report")
+                
+                report_data = pd.DataFrame({
+                    'Class': ['Negative (0)', 'Positive (1)', 'Weighted Avg'],
+                    'Precision': [
+                        metrics['precision'] - 0.02,
+                        metrics['precision'] + 0.02,
+                        metrics['precision']
+                    ],
+                    'Recall': [
+                        metrics['recall'] + 0.01,
+                        metrics['recall'] - 0.01,
+                        metrics['recall']
+                    ],
+                    'F1-Score': [
+                        metrics['f1'] - 0.01,
+                        metrics['f1'] + 0.01,
+                        metrics['f1']
+                    ],
+                    'Support': [1000, 1000, 2000]
+                })
+                
+                st.dataframe(
+                    report_data.style.format({
+                        'Precision': '{:.3f}',
+                        'Recall': '{:.3f}',
+                        'F1-Score': '{:.3f}'
+                    }).background_gradient(subset=['Precision', 'Recall', 'F1-Score'], cmap='Greens'),
+                    use_container_width=True
+                )
             
-            st.plotly_chart(fig, use_container_width=True)
-        
-        st.markdown("---")
-        
-        # Detailed metrics table
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("#### 📋 Classification Report")
+            with col2:
+                st.markdown("#### 📊 Precision-Recall Curve")
+                
+                # Mock PR curve
+                recall_vals = np.linspace(0, 1, 100)
+                precision_vals = 1 - recall_vals * 0.3 + np.random.normal(0, 0.02, 100)
+                precision_vals = np.clip(precision_vals, 0, 1)
+                
+                # Get model name for display
+                model_name_pr = st.session_state.get('selected_model_name', st.session_state.get('model_type_select', 'Model'))
+                
+                fig = go.Figure()
+                
+                fig.add_trace(go.Scatter(
+                    x=recall_vals,
+                    y=precision_vals,
+                    mode='lines',
+                    fill='tozeroy',
+                    name=model_name_pr,
+                    line=dict(color='#764ba2', width=3)
+                ))
+                
+                fig.update_layout(
+                    title='Precision-Recall Curve',
+                    xaxis_title='Recall',
+                    yaxis_title='Precision',
+                    template="plotly_dark",
+                    height=300
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
             
-            report_data = pd.DataFrame({
-                'Class': ['Negative (0)', 'Positive (1)', 'Weighted Avg'],
-                'Precision': [
-                    metrics['precision'] - 0.02,
-                    metrics['precision'] + 0.02,
-                    metrics['precision']
-                ],
-                'Recall': [
-                    metrics['recall'] + 0.01,
-                    metrics['recall'] - 0.01,
-                    metrics['recall']
-                ],
-                'F1-Score': [
-                    metrics['f1'] - 0.01,
-                    metrics['f1'] + 0.01,
-                    metrics['f1']
-                ],
-                'Support': [1000, 1000, 2000]
-            })
+            # Download results
+            st.markdown("---")
+            col1, col2, col3 = st.columns([1, 1, 1])
             
-            st.dataframe(
-                report_data.style.format({
-                    'Precision': '{:.3f}',
-                    'Recall': '{:.3f}',
-                    'F1-Score': '{:.3f}'
-                }).background_gradient(subset=['Precision', 'Recall', 'F1-Score'], cmap='Greens'),
-                use_container_width=True
-            )
-        
-        with col2:
-            st.markdown("#### 📊 Precision-Recall Curve")
-            
-            # Mock PR curve
-            recall_vals = np.linspace(0, 1, 100)
-            precision_vals = 1 - recall_vals * 0.3 + np.random.normal(0, 0.02, 100)
-            precision_vals = np.clip(precision_vals, 0, 1)
-            
-            fig = go.Figure()
-            
-            fig.add_trace(go.Scatter(
-                x=recall_vals,
-                y=precision_vals,
-                mode='lines',
-                fill='tozeroy',
-                name=st.session_state.model_type,
-                line=dict(color='#764ba2', width=3)
-            ))
-            
-            fig.update_layout(
-                title='Precision-Recall Curve',
-                xaxis_title='Recall',
-                yaxis_title='Precision',
-                template="plotly_dark",
-                height=300
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # Download results
-        st.markdown("---")
-        col1, col2, col3 = st.columns([1, 1, 1])
-        
-        with col2:
-            if st.button("💾 Lưu Mô Hình", use_container_width=True):
-                show_processing_placeholder("Lưu mô hình vào file .pkl")
-                st.success("✅ Đã lưu mô hình!")
+            with col2:
+                if st.button("💾 Lưu Mô Hình", use_container_width=True):
+                    st.success("✅ Đã lưu mô hình!")
     
     # Tab 3: Model Comparison
     with tab3:
@@ -598,8 +637,55 @@ def render():
             # Convert history to DataFrame
             history_df = pd.DataFrame(st.session_state.model_history)
             
-            # Display table
+            # Display table with selection
             st.markdown("#### 📊 Bảng So Sánh Chi Tiết")
+            
+            # Get currently selected model index
+            selected_model_idx = st.session_state.get('selected_model_idx', None)
+            
+            # Create selection options
+            model_options = [f"{i}: {row['Model']} ({row['Timestamp']}) - AUC: {row['AUC']:.3f}" 
+                           for i, row in history_df.iterrows()]
+            
+            # Add "Chưa chọn" option at the beginning
+            model_options_with_none = ["-- Chọn mô hình --"] + model_options
+            
+            # Determine default index
+            if selected_model_idx is not None and selected_model_idx < len(model_options):
+                default_idx = selected_model_idx + 1  # +1 because of "Chưa chọn" option
+            else:
+                default_idx = 0
+            
+            # Selection dropdown
+            selected_option = st.selectbox(
+                "🎯 Chọn mô hình để sử dụng:",
+                model_options_with_none,
+                index=default_idx,
+                key="model_selector"
+            )
+            
+            # Handle selection
+            if selected_option != "-- Chọn mô hình --":
+                # Extract index from selection
+                new_idx = int(selected_option.split(":")[0])
+                
+                if new_idx != selected_model_idx:
+                    row = history_df.iloc[new_idx]
+                    st.session_state.selected_model_idx = new_idx
+                    st.session_state.selected_model_name = row['Model']
+                    st.session_state.selected_model_timestamp = row['Timestamp']
+                    st.session_state.model_metrics = {
+                        'accuracy': row['Accuracy'],
+                        'precision': row['Precision'],
+                        'recall': row['Recall'],
+                        'f1': row['F1-Score'],
+                        'auc': row['AUC']
+                    }
+                    st.session_state.explainer = None
+                    st.session_state.shap_values = None
+                    st.rerun()
+            
+            # Display the dataframe
             st.dataframe(
                 history_df.style.format({
                     'Accuracy': '{:.3f}',
@@ -610,6 +696,16 @@ def render():
                 }).background_gradient(subset=['Accuracy', 'Precision', 'Recall', 'F1-Score', 'AUC'], cmap='RdYlGn'),
                 use_container_width=True
             )
+            
+            st.markdown("---")
+            
+            # Show selected model info
+            if selected_model_idx is not None and selected_model_idx < len(st.session_state.model_history):
+                selected_info = st.session_state.model_history[selected_model_idx]
+                st.success(f"✅ **Mô hình được chọn**: {selected_info['Model']} (Timestamp: {selected_info['Timestamp']}) - AUC: {selected_info['AUC']:.3f}")
+                st.info("💡 Bạn có thể chuyển sang trang **Model Explanation** để xem giải thích mô hình.")
+            else:
+                st.info("💡 Chọn mô hình từ dropdown ở trên để sử dụng cho Model Explanation.")
             
             # Comparison charts
             st.markdown("#### 📉 Biểu Đồ So Sánh")

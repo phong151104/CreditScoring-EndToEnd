@@ -6,7 +6,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from utils.ui_components import show_llm_analysis, show_processing_placeholder
+from utils.ui_components import show_llm_analysis
 from utils.session_state import init_session_state
 
 def render():
@@ -21,7 +21,9 @@ def render():
         st.warning("⚠️ Chưa có mô hình. Vui lòng huấn luyện mô hình trước.")
         return
     
-    st.success(f"✅ Sử dụng mô hình: {st.session_state.model_type}")
+    # Get the current model name
+    current_model_name = st.session_state.get('selected_model_name', st.session_state.get('model_type', 'Unknown'))
+    st.success(f"✅ Sử dụng mô hình: {current_model_name}")
     
     st.markdown("---")
     
@@ -540,6 +542,5 @@ def render():
         
         with col2:
             if st.button("📥 Tải Báo Cáo Chi Tiết", use_container_width=True):
-                show_processing_placeholder("Tạo báo cáo PDF với tất cả thông tin và gợi ý")
                 st.success("✅ Đã tạo báo cáo!")
 

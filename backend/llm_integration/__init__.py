@@ -12,11 +12,18 @@ from .eda_analyzer import (
 
 from .config import LLMConfig
 
+from .shap_analyzer import (
+    SHAPAnalyzer,
+    create_shap_analyzer
+)
+
 __all__ = [
     'EDADataCollector',
     'LLMEDAAnalyzer',
     'analyze_eda_with_llm',
     'get_eda_summary',
-    'LLMConfig'
+    'LLMConfig',
+    'SHAPAnalyzer',
+    'create_shap_analyzer'
 ]
 
