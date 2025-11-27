@@ -96,34 +96,90 @@ def clear_session_state():
 def clear_data_related_state():
     """Xóa các state liên quan đến data khi upload file mới"""
     keys_to_clear = [
+        # Data
         'data', 
         'processed_data', 
-        'selected_features', 
+        'selected_features',
+        'target_column',
+        
+        # Train/Valid/Test split
+        'train_data',
+        'valid_data', 
+        'test_data',
+        'X_train', 'X_valid', 'X_test',
+        'y_train', 'y_valid', 'y_test',
+        
+        # Model
         'model', 
-        'model_type', 
-        'model_metrics', 
+        'model_type',
+        'selected_model_name',
+        'selected_model_timestamp',
+        'selected_model_idx',
+        'model_metrics',
+        'trained_models',
+        'best_params',
+        'tuning_results',
+        
+        # SHAP & Explainability
         'explainer', 
         'shap_values',
+        'shap_explainer_obj',
+        'shap_values_computed',
+        'shap_X_explained',
+        'shap_feature_importance',
+        'shap_expected_value',
+        'shap_chat_history',
+        'last_ai_analysis',
+        'sample_question_selected',
+        
+        # Prediction
         'prediction_input',
         'prediction_result',
-        # Clear all configurations
+        'feature_stats',
+        
+        # Feature Engineering configurations
         'missing_config',
         'encoding_config',
         'scaling_config',
         'outlier_config',
         'binning_config',
+        'feature_engineering_saved',
+        'unlimited_depth',
+        
+        # Balancing
+        'balance_info',
+        'balanced_data',
+        
+        # AI Analysis cache
         'ai_analysis',
-        'eda_summary'
+        'eda_summary',
+        
+        # Encoders/Scalers fitted objects
+        'label_encoders',
+        'onehot_encoder',
+        'scaler',
     ]
+    
+    # Keys that should be reset to empty list
+    list_keys = ['selected_features', 'shap_chat_history']
+    
+    # Keys that should be reset to empty dict
+    dict_keys = [
+        'model_metrics', 'missing_config', 'encoding_config', 
+        'scaling_config', 'outlier_config', 'binning_config',
+        'label_encoders', 'feature_stats', 'best_params'
+    ]
+    
     for key in keys_to_clear:
         if key in st.session_state:
-            if key == 'selected_features':
+            if key in list_keys:
                 st.session_state[key] = []
-            elif key in ['model_metrics', 'missing_config', 'encoding_config', 
-                        'scaling_config', 'outlier_config', 'binning_config']:
+            elif key in dict_keys:
                 st.session_state[key] = {}
             else:
                 st.session_state[key] = None
+    
+    print("DEBUG: Cleared all data-related session state for new dataset")
 
 def get_session_info():
     """Lấy thông tin về session hiện tại"""

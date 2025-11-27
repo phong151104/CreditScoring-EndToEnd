@@ -222,8 +222,6 @@ def show_llm_analysis(prompt_text, placeholder_response):
             <p style="margin-bottom: 0; font-style: italic;">{placeholder_response}</p>
         </div>
         """, unsafe_allow_html=True)
-        
-        st.caption("🔧 Backend: Tích hợp LLM API (OpenAI/LangChain) để phân tích tự động")
 
 def show_processing_placeholder(step_name):
     """Hiển thị placeholder cho xử lý backend"""

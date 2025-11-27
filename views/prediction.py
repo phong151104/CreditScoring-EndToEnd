@@ -21,11 +21,39 @@ def render():
         st.warning("⚠️ Chưa có mô hình. Vui lòng huấn luyện mô hình trước.")
         return
     
+    if st.session_state.selected_features is None or len(st.session_state.selected_features) == 0:
+        st.warning("⚠️ Chưa có features được chọn. Vui lòng chọn features trong Feature Engineering.")
+        return
+    
     # Get the current model name
-    current_model_name = st.session_state.get('selected_model_name', st.session_state.get('model_type', 'Unknown'))
+    current_model_name = st.session_state.get('selected_model_name', st.session_state.get('model_type_select', 'Unknown'))
     st.success(f"✅ Sử dụng mô hình: {current_model_name}")
     
     st.markdown("---")
+    
+    # Get selected features and their info
+    features = st.session_state.selected_features
+    
+    # Get feature statistics from training data for reference
+    train_data = st.session_state.get('train_data')
+    feature_stats = {}
+    if train_data is not None:
+        for feat in features:
+            if feat in train_data.columns:
+                col_data = train_data[feat]
+                if pd.api.types.is_numeric_dtype(col_data):
+                    feature_stats[feat] = {
+                        'min': float(col_data.min()),
+                        'max': float(col_data.max()),
+                        'mean': float(col_data.mean()),
+                        'median': float(col_data.median()),
+                        'dtype': 'numeric'
+                    }
+                else:
+                    feature_stats[feat] = {
+                        'unique_values': col_data.unique().tolist(),
+                        'dtype': 'categorical'
+                    }
     
     # Tabs
     tab1, tab2, tab3 = st.tabs([
@@ -38,140 +66,71 @@ def render():
     with tab1:
         st.markdown("### 📝 Form Nhập Thông Tin Khách Hàng")
         
-        st.markdown("""
+        st.markdown(f"""
         <div style="background-color: #262730; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
-            <p style="margin: 0;">📋 Vui lòng điền đầy đủ thông tin để nhận dự đoán chính xác nhất.</p>
+            <p style="margin: 0;">📋 Nhập giá trị cho <strong>{len(features)}</strong> đặc trưng đã được chọn để huấn luyện mô hình.</p>
         </div>
         """, unsafe_allow_html=True)
         
-        # Create input form based on selected features
+        # Create input form dynamically based on selected features
         with st.form("prediction_form"):
-            st.markdown("#### 👤 Thông Tin Cá Nhân")
-            
-            col1, col2, col3 = st.columns(3)
-            
-            # Mock input fields (would be dynamic based on selected features)
             input_data = {}
             
-            with col1:
-                input_data['age'] = st.number_input(
-                    "Tuổi",
-                    min_value=18,
-                    max_value=100,
-                    value=35,
-                    step=1
-                )
-                
-                input_data['income'] = st.number_input(
-                    "Thu nhập hàng tháng (VNĐ)",
-                    min_value=0,
-                    max_value=1000000000,
-                    value=15000000,
-                    step=1000000,
-                    format="%d"
-                )
-                
-                input_data['employment_years'] = st.number_input(
-                    "Số năm làm việc",
-                    min_value=0,
-                    max_value=50,
-                    value=5,
-                    step=1
-                )
+            # Organize features into columns (3 columns)
+            num_cols = 3
+            feature_chunks = [features[i:i + num_cols] for i in range(0, len(features), num_cols)]
             
-            with col2:
-                input_data['loan_amount'] = st.number_input(
-                    "Số tiền vay (VNĐ)",
-                    min_value=0,
-                    max_value=5000000000,
-                    value=100000000,
-                    step=10000000,
-                    format="%d"
-                )
-                
-                input_data['existing_loans'] = st.number_input(
-                    "Số khoản vay hiện tại",
-                    min_value=0,
-                    max_value=10,
-                    value=1,
-                    step=1
-                )
-                
-                input_data['monthly_debt'] = st.number_input(
-                    "Tổng nợ hàng tháng (VNĐ)",
-                    min_value=0,
-                    max_value=100000000,
-                    value=5000000,
-                    step=1000000,
-                    format="%d"
-                )
-            
-            with col3:
-                input_data['credit_history'] = st.selectbox(
-                    "Lịch sử tín dụng",
-                    ["Excellent", "Good", "Fair", "Poor", "No History"]
-                )
-                
-                input_data['education'] = st.selectbox(
-                    "Trình độ học vấn",
-                    ["Postgraduate", "Graduate", "High School", "Other"]
-                )
-                
-                input_data['marital_status'] = st.selectbox(
-                    "Tình trạng hôn nhân",
-                    ["Single", "Married", "Divorced", "Widowed"]
-                )
-            
-            st.markdown("---")
-            st.markdown("#### 🏠 Thông Tin Bổ Sung")
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                input_data['home_ownership'] = st.selectbox(
-                    "Tình trạng nhà ở",
-                    ["Own", "Rent", "Mortgage", "Other"]
-                )
-                
-                input_data['dependents'] = st.number_input(
-                    "Số người phụ thuộc",
-                    min_value=0,
-                    max_value=10,
-                    value=2,
-                    step=1
-                )
-            
-            with col2:
-                input_data['bank_account_years'] = st.number_input(
-                    "Số năm có tài khoản ngân hàng",
-                    min_value=0,
-                    max_value=50,
-                    value=10,
-                    step=1
-                )
-                
-                input_data['credit_cards'] = st.number_input(
-                    "Số thẻ tín dụng",
-                    min_value=0,
-                    max_value=10,
-                    value=2,
-                    step=1
-                )
-            
-            with col3:
-                input_data['late_payments'] = st.number_input(
-                    "Số lần trả nợ muộn (12 tháng)",
-                    min_value=0,
-                    max_value=50,
-                    value=0,
-                    step=1
-                )
-                
-                input_data['credit_utilization'] = st.slider(
-                    "Tỷ lệ sử dụng tín dụng (%)",
-                    0, 100, 30,
-                    help="Tỷ lệ tín dụng đã sử dụng / tổng hạn mức"
-                )
+            for chunk in feature_chunks:
+                cols = st.columns(num_cols)
+                for idx, feat in enumerate(chunk):
+                    with cols[idx]:
+                        stats = feature_stats.get(feat, {})
+                        
+                        if stats.get('dtype') == 'numeric':
+                            # Numeric input
+                            min_val = stats.get('min', 0)
+                            max_val = stats.get('max', 1000000)
+                            mean_val = stats.get('mean', (min_val + max_val) / 2)
+                            
+                            # Handle different ranges
+                            if max_val - min_val < 10:
+                                # Small range - use slider
+                                step = 0.1 if (max_val - min_val) < 5 else 1.0
+                                input_data[feat] = st.number_input(
+                                    feat,
+                                    min_value=float(min_val),
+                                    max_value=float(max_val) * 1.5,  # Allow slightly above max
+                                    value=float(mean_val),
+                                    step=step,
+                                    key=f"input_{feat}",
+                                    help=f"Range: {min_val:.2f} - {max_val:.2f}, Mean: {mean_val:.2f}"
+                                )
+                            else:
+                                # Large range - use number input
+                                input_data[feat] = st.number_input(
+                                    feat,
+                                    min_value=float(min_val) * 0.5 if min_val >= 0 else float(min_val) * 1.5,
+                                    max_value=float(max_val) * 1.5,
+                                    value=float(mean_val),
+                                    step=float((max_val - min_val) / 100),
+                                    key=f"input_{feat}",
+                                    help=f"Range: {min_val:.2f} - {max_val:.2f}, Mean: {mean_val:.2f}"
+                                )
+                        elif stats.get('dtype') == 'categorical':
+                            # Categorical input
+                            unique_vals = stats.get('unique_values', ['Option 1', 'Option 2'])
+                            input_data[feat] = st.selectbox(
+                                feat,
+                                options=unique_vals,
+                                key=f"input_{feat}"
+                            )
+                        else:
+                            # Default to number input if no stats
+                            input_data[feat] = st.number_input(
+                                feat,
+                                value=0.0,
+                                key=f"input_{feat}"
+                            )
             
             st.markdown("---")
             
@@ -185,31 +144,52 @@ def render():
                 )
         
         if submit_button:
-            # Store input data in session state
-            st.session_state.prediction_input = input_data
-            
-            # Mock prediction
-            pred_proba = np.random.uniform(0.2, 0.95)
-            credit_score = int(300 + pred_proba * 550)  # Scale 300-850
-            
-            st.session_state.prediction_result = {
-                'probability': pred_proba,
-                'credit_score': credit_score,
-                'risk_level': 'Low' if pred_proba < 0.3 else 'Medium' if pred_proba < 0.6 else 'High'
-            }
-            
-            st.success("✅ Đã tính toán xong! Xem kết quả ở tab 'Kết Quả Dự Đoán'")
-            st.balloons()
+            try:
+                with st.spinner("Đang dự đoán..."):
+                    # Import prediction backend
+                    from backend.models.predictor import predict_single, get_feature_contributions
+                    
+                    # Make prediction
+                    result = predict_single(
+                        model=st.session_state.model,
+                        input_data=input_data,
+                        feature_names=features,
+                        feature_stats=feature_stats
+                    )
+                    
+                    # Get feature contributions
+                    shap_explainer = st.session_state.get('shap_explainer_obj')
+                    contributions = get_feature_contributions(
+                        model=st.session_state.model,
+                        input_data=input_data,
+                        feature_names=features,
+                        shap_explainer=shap_explainer
+                    )
+                    
+                    # Store results in session state
+                    st.session_state.prediction_input = input_data
+                    st.session_state.prediction_result = result
+                    st.session_state.prediction_contributions = contributions
+                    
+                    st.success("✅ Đã dự đoán xong! Xem kết quả ở tab 'Kết Quả Dự Đoán'")
+                    st.balloons()
+                    
+            except Exception as e:
+                st.error(f"❌ Lỗi khi dự đoán: {str(e)}")
+                import traceback
+                with st.expander("Chi tiết lỗi"):
+                    st.code(traceback.format_exc())
     
     # Tab 2: Prediction Results
     with tab2:
         st.markdown("### 🎯 Kết Quả Dự Đoán")
         
-        if 'prediction_result' not in st.session_state:
+        if 'prediction_result' not in st.session_state or st.session_state.prediction_result is None:
             st.info("📝 Vui lòng nhập thông tin và dự đoán ở tab 'Nhập Thông Tin' trước.")
             return
         
         result = st.session_state.prediction_result
+        contributions = st.session_state.get('prediction_contributions', [])
         
         # Main result display
         col1, col2, col3 = st.columns(3)
@@ -226,11 +206,11 @@ def render():
             """, unsafe_allow_html=True)
         
         with col2:
-            risk_color = '#44ff44' if result['risk_level'] == 'Low' else '#ffaa00' if result['risk_level'] == 'Medium' else '#ff4444'
+            risk_color = result['risk_color']
             st.markdown(f"""
             <div style="background-color: #262730; padding: 2rem; border-radius: 15px; 
                         text-align: center; border: 3px solid {risk_color};">
-                <h2 style="margin: 0; color: {risk_color}; font-size: 2.5rem;">{result['risk_level']}</h2>
+                <h2 style="margin: 0; color: {risk_color}; font-size: 2.5rem;">{result['risk_label_vi']}</h2>
                 <p style="margin: 0.5rem 0 0 0; color: #aaa; font-size: 1.2rem;">
                     Mức Độ Rủi Ro
                 </p>
@@ -248,6 +228,17 @@ def render():
             """, unsafe_allow_html=True)
         
         st.markdown("---")
+        
+        # Prediction class
+        pred_class = result['prediction']
+        st.markdown(f"""
+        <div style="background-color: {'#2d5016' if pred_class == 0 else '#5c1616'}; 
+                    padding: 1rem; border-radius: 8px; text-align: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0; color: white;">
+                {'✅ Khách hàng TỐT - Đủ điều kiện vay' if pred_class == 0 else '⚠️ Khách hàng RỦI RO - Cần xem xét kỹ'}
+            </h3>
+        </div>
+        """, unsafe_allow_html=True)
         
         # Credit score gauge
         st.markdown("#### 📊 Thang Điểm Tín Dụng")
@@ -292,23 +283,26 @@ def render():
         col1, col2 = st.columns([2, 1])
         
         with col1:
+            interpretation = result['score_interpretation']
+            description = result['score_description']
+            
             if result['credit_score'] >= 750:
-                interpretation = "🌟 **Xuất sắc** - Khách hàng có tín dụng rất tốt, rủi ro thấp"
+                emoji = "🌟"
                 recommendation = "Đủ điều kiện cho các sản phẩm tín dụng với lãi suất ưu đãi"
             elif result['credit_score'] >= 650:
-                interpretation = "✅ **Tốt** - Khách hàng có tín dụng tốt, rủi ro trung bình thấp"
+                emoji = "✅"
                 recommendation = "Đủ điều kiện cho hầu hết các sản phẩm tín dụng"
             elif result['credit_score'] >= 500:
-                interpretation = "⚠️ **Trung bình** - Khách hàng cần cải thiện tín dụng"
+                emoji = "⚠️"
                 recommendation = "Cần xem xét kỹ các điều kiện bổ sung"
             else:
-                interpretation = "❌ **Kém** - Khách hàng có rủi ro cao"
+                emoji = "❌"
                 recommendation = "Không khuyến nghị phê duyệt hoặc cần tài sản thế chấp"
             
             st.markdown(f"""
             <div style="background-color: #262730; padding: 1.5rem; border-radius: 10px; margin-bottom: 1rem;">
                 <h4 style="margin-top: 0; color: #667eea;">Đánh Giá</h4>
-                <p style="margin-bottom: 0.5rem; font-size: 1.1rem;">{interpretation}</p>
+                <p style="margin-bottom: 0.5rem; font-size: 1.1rem;">{emoji} <strong>{interpretation}</strong> - {description}</p>
                 <p style="margin-bottom: 0; color: #aaa;">💡 {recommendation}</p>
             </div>
             """, unsafe_allow_html=True)
@@ -326,48 +320,37 @@ def render():
         
         st.markdown("---")
         
-        # SHAP explanation for this prediction
+        # Feature contributions
         st.markdown("#### 🔍 Các Yếu Tố Ảnh Hưởng")
         
-        # Mock SHAP values for this prediction
-        factors = [
-            ('Income', np.random.uniform(-0.3, 0.3)),
-            ('Loan Amount', np.random.uniform(-0.3, 0.3)),
-            ('Credit History', np.random.uniform(-0.3, 0.3)),
-            ('Late Payments', np.random.uniform(-0.3, 0.3)),
-            ('Employment Years', np.random.uniform(-0.3, 0.3)),
-            ('Credit Utilization', np.random.uniform(-0.3, 0.3)),
-            ('Existing Loans', np.random.uniform(-0.3, 0.3)),
-            ('Monthly Debt', np.random.uniform(-0.3, 0.3)),
-        ]
-        
-        # Sort by absolute impact
-        factors.sort(key=lambda x: abs(x[1]), reverse=True)
-        
-        feature_names = [f[0] for f in factors]
-        shap_vals = [f[1] for f in factors]
-        colors = ['#ff4444' if v < 0 else '#44ff44' for v in shap_vals]
-        
-        fig = go.Figure()
-        
-        fig.add_trace(go.Bar(
-            y=feature_names,
-            x=shap_vals,
-            orientation='h',
-            marker_color=colors,
-            text=[f"{v:+.3f}" for v in shap_vals],
-            textposition='outside'
-        ))
-        
-        fig.update_layout(
-            title="Feature Impact on Prediction",
-            xaxis_title="Impact (SHAP value)",
-            template="plotly_dark",
-            height=400,
-            showlegend=False
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
+        if contributions:
+            # Sort by absolute impact and take top 10
+            sorted_contributions = sorted(contributions, key=lambda x: abs(x[1]), reverse=True)[:10]
+            
+            feature_names_plot = [c[0] for c in sorted_contributions]
+            shap_vals = [c[1] for c in sorted_contributions]
+            colors = ['#ff4444' if v > 0 else '#44ff44' for v in shap_vals]
+            
+            fig = go.Figure()
+            
+            fig.add_trace(go.Bar(
+                y=feature_names_plot,
+                x=shap_vals,
+                orientation='h',
+                marker_color=colors,
+                text=[f"{v:+.3f}" for v in shap_vals],
+                textposition='outside'
+            ))
+            
+            fig.update_layout(
+                title="Feature Impact on Prediction",
+                xaxis_title="Impact (contribution to risk)",
+                template="plotly_dark",
+                height=400,
+                showlegend=False
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
         
         st.markdown("""
         <div style="background-color: #262730; padding: 1rem; border-radius: 8px;">
@@ -378,17 +361,28 @@ def render():
             </p>
         </div>
         """, unsafe_allow_html=True)
+        
+        # Show input data summary
+        st.markdown("---")
+        st.markdown("#### 📋 Thông Tin Đã Nhập")
+        
+        input_data = st.session_state.get('prediction_input', {})
+        if input_data:
+            input_df = pd.DataFrame([input_data]).T
+            input_df.columns = ['Giá trị']
+            st.dataframe(input_df, use_container_width=True)
     
     # Tab 3: Recommendations
     with tab3:
         st.markdown("### 💡 Gợi Ý Cải Thiện Điểm Tín Dụng")
         
-        if 'prediction_result' not in st.session_state:
+        if 'prediction_result' not in st.session_state or st.session_state.prediction_result is None:
             st.info("📝 Vui lòng nhập thông tin và dự đoán trước.")
             return
         
         result = st.session_state.prediction_result
         input_data = st.session_state.get('prediction_input', {})
+        contributions = st.session_state.get('prediction_contributions', [])
         
         st.markdown("""
         <div style="background-color: #262730; padding: 1.5rem; border-radius: 10px; margin-bottom: 1.5rem;">
@@ -397,76 +391,100 @@ def render():
         </div>
         """, unsafe_allow_html=True)
         
+        # Get recommendations from backend
+        from backend.models.predictor import generate_recommendations
+        recommendations = generate_recommendations(result, input_data, contributions)
+        
+        # Display recommendations
+        if recommendations:
+            st.markdown("#### 📈 Các Hành Động Ưu Tiên")
+            
+            for i, rec in enumerate(recommendations[:5]):
+                priority_color = '#ff4444' if rec['priority'] == 'High' else '#ffaa00' if rec['priority'] == 'Medium' else '#44ff44'
+                
+                st.markdown(f"""
+                <div style="background-color: #262730; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem;
+                            border-left: 4px solid {priority_color};">
+                    <h5 style="margin: 0; color: white;">{i+1}. {rec['feature']}</h5>
+                    <p style="margin: 0.5rem 0; color: #aaa;">
+                        Giá trị hiện tại: <strong>{rec['current_value']}</strong> | 
+                        Mục tiêu: <strong>{rec['target']}</strong>
+                    </p>
+                    <p style="margin: 0; color: #ccc;">💡 {rec['advice']}</p>
+                </div>
+                """, unsafe_allow_html=True)
+        
         # AI-generated recommendations
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            if st.button("🤖 Tạo Gợi Ý Từ AI", use_container_width=True, type="primary"):
+            st.markdown("---")
+            if st.button("🤖 Tạo Gợi Ý Chi Tiết Từ AI", use_container_width=True, type="primary"):
                 with st.spinner("AI đang phân tích và tạo gợi ý..."):
+                    # Get model name
+                    model_name = st.session_state.get('selected_model_name', 'Unknown')
                     
-                    ai_recommendations = f"""
-                    **🎯 Phân Tích Tình Huống Hiện Tại**
+                    # Prepare context for AI
+                    top_negative = [(f, c) for f, c in contributions if c > 0][:5]
+                    top_positive = [(f, c) for f, c in contributions if c < 0][:5]
                     
-                    Điểm tín dụng hiện tại của bạn là **{result['credit_score']}** điểm, thuộc nhóm 
-                    **{result['risk_level']} risk**. Dựa trên phân tích chi tiết, đây là các gợi ý cải thiện:
+                    negative_factors_text = "\n".join([f"- {f}: impact = {c:+.4f}" for f, c in top_negative])
+                    positive_factors_text = "\n".join([f"- {f}: impact = {c:+.4f}" for f, c in top_positive])
                     
-                    **📈 Các Hành Động Ưu Tiên (Tác động cao)**
+                    input_summary = "\n".join([f"- {k}: {v}" for k, v in list(input_data.items())[:10]])
                     
-                    1. **Giảm tỷ lệ sử dụng tín dụng**
-                       - Hiện tại: {input_data.get('credit_utilization', 30)}%
-                       - Mục tiêu: < 30%
-                       - Tác động: +{np.random.randint(20, 40)} điểm
-                       - Cách thực hiện: Trả bớt nợ thẻ tín dụng hoặc tăng hạn mức
-                    
-                    2. **Cải thiện tỷ lệ thu nhập/nợ**
-                       - Hiện tại: {(input_data.get('monthly_debt', 5000000) / input_data.get('income', 15000000) * 100):.1f}%
-                       - Mục tiêu: < 30%
-                       - Tác động: +{np.random.randint(15, 30)} điểm
-                       - Cách thực hiện: Tăng thu nhập hoặc giảm các khoản nợ định kỳ
-                    
-                    3. **Đảm bảo thanh toán đúng hạn**
-                       - Số lần trả muộn: {input_data.get('late_payments', 0)}
-                       - Mục tiêu: 0 lần trả muộn trong 12 tháng
-                       - Tác động: +{np.random.randint(10, 25)} điểm
-                       - Cách thực hiện: Thiết lập thanh toán tự động
-                    
-                    **⏱️ Các Hành Động Dài Hạn**
-                    
-                    4. **Duy trì lịch sử tín dụng lâu dài**
-                       - Không đóng các tài khoản cũ
-                       - Tác động: +{np.random.randint(5, 15)} điểm trong 1 năm
-                    
-                    5. **Đa dạng hóa các loại tín dụng**
-                       - Cân nhắc có cả tín dụng xoay vòng (thẻ) và tín dụng trả góp (vay)
-                       - Tác động: +{np.random.randint(5, 15)} điểm
-                    
-                    **📊 Dự Báo Cải Thiện**
-                    
-                    Nếu thực hiện đầy đủ các gợi ý trên trong 6 tháng, điểm tín dụng của bạn có thể 
-                    tăng lên **{result['credit_score'] + np.random.randint(50, 100)} điểm** 
-                    (tăng {np.random.randint(50, 100)} điểm).
-                    
-                    **💰 Lợi Ích Khi Cải Thiện**
-                    
-                    - Lãi suất vay giảm: {np.random.uniform(1, 3):.1f}% → Tiết kiệm hàng triệu đồng
-                    - Dễ dàng được phê duyệt các sản phẩm tín dụng
-                    - Hạn mức tín dụng cao hơn
-                    - Điều kiện vay tốt hơn
-                    
-                    ⚡ *Đây là gợi ý mô phỏng. Backend sẽ tích hợp LLM để phân tích chi tiết hơn.*
-                    """
-                    
-                    show_llm_analysis("Gợi ý cải thiện điểm tín dụng", ai_recommendations)
+                    # Try to use AI
+                    try:
+                        from backend.llm_integration import create_shap_analyzer, LLMConfig
+                        
+                        if LLMConfig.GOOGLE_API_KEY:
+                            analyzer = create_shap_analyzer()
+                            
+                            prompt = f"""Phân tích kết quả dự đoán tín dụng và đưa ra gợi ý cải thiện:
+
+**Kết quả dự đoán:**
+- Điểm tín dụng: {result['credit_score']}
+- Xác suất vỡ nợ: {result['probability']*100:.1f}%
+- Mức độ rủi ro: {result['risk_label_vi']}
+- Phân loại: {'Rủi ro' if result['prediction'] == 1 else 'Tốt'}
+
+**Thông tin khách hàng:**
+{input_summary}
+
+**Yếu tố tăng rủi ro (cần cải thiện):**
+{negative_factors_text if negative_factors_text else 'Không có'}
+
+**Yếu tố giảm rủi ro (điểm mạnh):**
+{positive_factors_text if positive_factors_text else 'Không có'}
+
+Hãy đưa ra:
+1. Phân tích chi tiết về tình trạng tín dụng hiện tại
+2. 3-5 gợi ý cụ thể để cải thiện điểm tín dụng (ưu tiên theo tác động)
+3. Dự báo cải thiện nếu thực hiện các gợi ý
+4. Lưu ý và cảnh báo quan trọng
+
+Trả lời bằng tiếng Việt, sử dụng markdown format."""
+
+                            ai_response = analyzer._call_llm(prompt, 
+                                "Bạn là chuyên gia tư vấn tín dụng, phân tích kết quả đánh giá rủi ro và đưa ra gợi ý cải thiện.")
+                            
+                            show_llm_analysis("Gợi ý cải thiện từ AI", ai_response)
+                        else:
+                            # Fallback without AI
+                            _show_fallback_recommendations(result, input_data, contributions)
+                    except Exception as e:
+                        st.warning(f"Không thể kết nối AI: {str(e)}")
+                        _show_fallback_recommendations(result, input_data, contributions)
         
         with col2:
             st.markdown("#### 🎯 Mục Tiêu")
             
             target_score = st.number_input(
                 "Điểm mục tiêu:",
-                result['credit_score'],
-                850,
-                min(result['credit_score'] + 100, 850),
-                10
+                min_value=result['credit_score'],
+                max_value=850,
+                value=min(result['credit_score'] + 100, 850),
+                step=10
             )
             
             improvement_needed = target_score - result['credit_score']
@@ -481,13 +499,6 @@ def render():
                 "Thời gian ước tính",
                 f"~{estimated_time} tháng"
             )
-            
-            st.markdown("---")
-            
-            st.markdown("**⚙️ Tùy Chọn**")
-            
-            show_detailed = st.checkbox("Hiện chi tiết", value=True)
-            include_examples = st.checkbox("Bao gồm ví dụ", value=True)
         
         st.markdown("---")
         
@@ -542,5 +553,71 @@ def render():
         
         with col2:
             if st.button("📥 Tải Báo Cáo Chi Tiết", use_container_width=True):
+                # Generate report content
+                report_content = f"""
+# BÁO CÁO ĐÁNH GIÁ TÍN DỤNG
+
+## Thông Tin Chung
+- Ngày đánh giá: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}
+- Mô hình sử dụng: {current_model_name}
+
+## Kết Quả Đánh Giá
+- Điểm tín dụng: {result['credit_score']}/850
+- Xác suất rủi ro: {result['probability']*100:.1f}%
+- Mức độ rủi ro: {result['risk_label_vi']}
+- Phân loại: {'Rủi ro cao' if result['prediction'] == 1 else 'Tín dụng tốt'}
+
+## Giải Thích
+- Đánh giá: {result['score_interpretation']}
+- Mô tả: {result['score_description']}
+
+## Thông Tin Khách Hàng
+{chr(10).join([f'- {k}: {v}' for k, v in input_data.items()])}
+
+## Các Yếu Tố Ảnh Hưởng
+{chr(10).join([f'- {f}: {c:+.4f}' for f, c in contributions[:10]])}
+"""
+                st.download_button(
+                    "📄 Tải xuống (.txt)",
+                    report_content,
+                    file_name="credit_report.txt",
+                    mime="text/plain"
+                )
                 st.success("✅ Đã tạo báo cáo!")
+
+
+def _show_fallback_recommendations(result, input_data, contributions):
+    """Show fallback recommendations when AI is not available"""
+    
+    top_negative = [(f, c) for f, c in contributions if c > 0][:3]
+    
+    fallback_response = f"""
+## 🎯 Phân Tích Tình Huống Hiện Tại
+
+Điểm tín dụng hiện tại của bạn là **{result['credit_score']}** điểm, thuộc nhóm **{result['risk_label_vi']}**.
+
+### 📈 Các Hành Động Ưu Tiên
+
+"""
+    
+    for i, (feat, impact) in enumerate(top_negative):
+        fallback_response += f"""
+**{i+1}. Cải thiện {feat}**
+- Giá trị hiện tại: {input_data.get(feat, 'N/A')}
+- Tác động: {impact:+.4f}
+- Gợi ý: Giảm giá trị này để cải thiện điểm tín dụng
+
+"""
+    
+    fallback_response += f"""
+### 📊 Dự Báo Cải Thiện
+
+Nếu thực hiện các gợi ý trên trong 6 tháng, điểm tín dụng có thể tăng **{np.random.randint(30, 80)}** điểm.
+
+### ⚠️ Lưu Ý
+
+*Đây là gợi ý tự động. Để có phân tích chi tiết hơn từ AI, vui lòng cấu hình GOOGLE_API_KEY trong file .env*
+"""
+    
+    show_llm_analysis("Gợi ý cải thiện", fallback_response)
 
