@@ -13,26 +13,6 @@ from utils.session_state import init_session_state, clear_data_related_state
 from backend.llm_integration import analyze_eda_with_llm, get_eda_summary, LLMConfig
 
 
-def render_eda_tabs(data, key_suffix=""):
-    """Helper function to render EDA tabs - reusable for both uploaded and cached data"""
-    
-    # Import inside function to avoid circular imports
-    import base64
-    from io import BytesIO
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-    
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📋 Dữ Liệu Mẫu", 
-        "📊 Thống Kê Mô Tả", 
-        "📈 Phân Phối Dữ Liệu",
-        "🤖 Phân Tích AI"
-    ])
-    
-    # The tabs will be rendered by the main render function
-    return tab1, tab2, tab3, tab4
-
 
 def render():
     """Render trang Upload & EDA"""
@@ -84,16 +64,24 @@ def render():
             st.session_state.data = data
             st.success(f"✅ Data loaded successfully! ({len(data)} rows, {len(data.columns)} columns)")
             
-            # Tabs for different views
-            tab1, tab2, tab3, tab4 = st.tabs([
-                "📋 Dữ Liệu Mẫu", 
-                "📊 Thống Kê Mô Tả", 
-                "📈 Phân Phối Dữ Liệu",
-                "🤖 Phân Tích AI"
-            ])
+            # Use session state to track current tab (workaround for st.tabs not preserving state)
+            if 'current_eda_tab' not in st.session_state:
+                st.session_state.current_eda_tab = "📋 Dữ Liệu Mẫu"
+            
+            # Tab selector using radio (preserves state on rerun)
+            selected_tab = st.radio(
+                "Chọn mục:",
+                ["📋 Dữ Liệu Mẫu", "📊 Thống Kê Mô Tả", "📈 Phân Phối Dữ Liệu", "🤖 Phân Tích AI"],
+                horizontal=True,
+                key="eda_tab_selector",
+                index=["📋 Dữ Liệu Mẫu", "📊 Thống Kê Mô Tả", "📈 Phân Phối Dữ Liệu", "🤖 Phân Tích AI"].index(st.session_state.current_eda_tab)
+            )
+            st.session_state.current_eda_tab = selected_tab
+            
+            st.markdown("---")
             
             # Tab 1: Sample Data
-            with tab1:
+            if selected_tab == "📋 Dữ Liệu Mẫu":
                 st.markdown("### 📋 Dữ Liệu Mẫu")
                 
                 # Controls
@@ -220,7 +208,7 @@ def render():
                     st.metric("🔢 Cột số", len(numeric_cols))
             
             # Tab 2: Descriptive Statistics
-            with tab2:
+            elif selected_tab == "📊 Thống Kê Mô Tả":
                 st.markdown("### 📊 Thống Kê Mô Tả")
                 
                 # Numeric columns stats
@@ -471,13 +459,14 @@ def render():
                     st.dataframe(cat_df, use_container_width=True)
             
             # Tab 3: Data Distribution
-            with tab3:
+            elif selected_tab == "📈 Phân Phối Dữ Liệu":
                 st.markdown("### 📈 Phân Phối & Tương Quan Dữ Liệu")
                 
                 viz_type = st.radio(
                     "Chọn loại phân tích:",
                     ["Correlation Heatmap", "Scatter Plot Matrix", "Scatter Plot (2 Biến)", "Grouped Analysis"],
-                    horizontal=True
+                    horizontal=True,
+                    key="viz_type_upload"
                 )
                 
                 if viz_type == "Correlation Heatmap":
@@ -721,7 +710,7 @@ def render():
                             st.warning("Không có biến phân loại nào trong dữ liệu.")
             
             # Tab 4: AI Analysis
-            with tab4:
+            elif selected_tab == "🤖 Phân Tích AI":
                 st.markdown("### 🤖 Phân Tích Tự Động Bằng AI")
                 
                 # Check LLM configuration
@@ -997,17 +986,24 @@ QUAN TRỌNG:
             
             st.markdown("---")
             
-            # Show FULL EDA tabs (same as when file is uploaded)
-            tab1, tab2, tab3, tab4 = st.tabs([
-                "📋 Dữ Liệu Mẫu", 
-                "📊 Thống Kê Mô Tả", 
-                "📈 Phân Phối Dữ Liệu",
-                "🤖 Phân Tích AI"
-            ])
+            # Use session state to track current tab (workaround for st.tabs not preserving state)
+            if 'current_eda_tab_cached' not in st.session_state:
+                st.session_state.current_eda_tab_cached = "📋 Dữ Liệu Mẫu"
             
-            # Copy the full tab content from the uploaded_file section
+            # Tab selector using radio (preserves state on rerun)
+            selected_tab = st.radio(
+                "Chọn mục:",
+                ["📋 Dữ Liệu Mẫu", "📊 Thống Kê Mô Tả", "📈 Phân Phối Dữ Liệu", "🤖 Phân Tích AI"],
+                horizontal=True,
+                key="eda_tab_selector_cached",
+                index=["📋 Dữ Liệu Mẫu", "📊 Thống Kê Mô Tả", "📈 Phân Phối Dữ Liệu", "🤖 Phân Tích AI"].index(st.session_state.current_eda_tab_cached)
+            )
+            st.session_state.current_eda_tab_cached = selected_tab
+            
+            st.markdown("---")
+            
             # Tab 1: Sample Data
-            with tab1:
+            if selected_tab == "📋 Dữ Liệu Mẫu":
                 st.markdown("### 📋 Dữ Liệu Mẫu")
                 
                 col1, col2 = st.columns([3, 1])
@@ -1116,7 +1112,7 @@ QUAN TRỌNG:
                     st.metric("🔢 Cột số", len(numeric_cols))
             
             # Tab 2, 3, 4: Copy FULL content from uploaded section
-            with tab2:
+            elif selected_tab == "📊 Thống Kê Mô Tả":
                 st.markdown("### 📊 Thống Kê Mô Tả")
                 
                 # Numeric columns stats
@@ -1164,7 +1160,7 @@ QUAN TRỌNG:
                     cat_df = pd.DataFrame(cat_info)
                     st.dataframe(cat_df, use_container_width=True)
             
-            with tab3:
+            elif selected_tab == "📈 Phân Phối Dữ Liệu":
                 st.markdown("### 📈 Phân Phối & Tương Quan Dữ Liệu")
                 
                 viz_type = st.radio(
@@ -1278,7 +1274,7 @@ QUAN TRỌNG:
                     else:
                         st.warning("Cần ít nhất 2 biến số.")
             
-            with tab4:
+            elif selected_tab == "🤖 Phân Tích AI":
                 st.markdown("### 🤖 Phân Tích Tự Động Bằng AI")
                 
                 # Check LLM configuration
