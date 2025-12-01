@@ -139,7 +139,7 @@ def render():
             with col2:
                 submit_button = st.form_submit_button(
                     "🎯 Dự Đoán Điểm Tín Dụng",
-                    use_container_width=True,
+                    width='stretch',
                     type="primary"
                 )
         
@@ -275,7 +275,7 @@ def render():
             font={'color': "white", 'family': "Arial"}
         )
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         
         # Score interpretation
         st.markdown("#### 📖 Giải Thích Điểm Số")
@@ -350,7 +350,7 @@ def render():
                 showlegend=False
             )
             
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         
         st.markdown("""
         <div style="background-color: #262730; padding: 1rem; border-radius: 8px;">
@@ -370,7 +370,7 @@ def render():
         if input_data:
             input_df = pd.DataFrame([input_data]).T
             input_df.columns = ['Giá trị']
-            st.dataframe(input_df, use_container_width=True)
+            st.dataframe(input_df, width='stretch')
     
     # Tab 3: Recommendations
     with tab3:
@@ -419,7 +419,7 @@ def render():
         
         with col1:
             st.markdown("---")
-            if st.button("🤖 Tạo Gợi Ý Chi Tiết Từ AI", use_container_width=True, type="primary"):
+            if st.button("🤖 Tạo Gợi Ý Chi Tiết Từ AI", width='stretch', type="primary"):
                 with st.spinner("AI đang phân tích và tạo gợi ý..."):
                     # Get model name
                     model_name = st.session_state.get('selected_model_name', 'Unknown')
@@ -552,7 +552,7 @@ Trả lời bằng tiếng Việt, sử dụng markdown format."""
         col1, col2, col3 = st.columns([1, 1, 1])
         
         with col2:
-            if st.button("📥 Tải Báo Cáo Chi Tiết", use_container_width=True):
+            if st.button("📥 Tải Báo Cáo Chi Tiết", width='stretch'):
                 # Generate report content
                 report_content = f"""
 # BÁO CÁO ĐÁNH GIÁ TÍN DỤNG

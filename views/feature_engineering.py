@@ -439,12 +439,12 @@ def render():
             action_col1, action_col2, action_col3 = st.columns(3)
             
             with action_col1:
-                if st.button("🔄 Làm Mới Dashboard", key="refresh_dashboard", use_container_width=True):
+                if st.button("🔄 Làm Mới Dashboard", key="refresh_dashboard", width='stretch'):
                     st.rerun()
             
             with action_col2:
                 # Export configuration as JSON
-                if st.button("📥 Xuất Cấu Hình", key="export_config", use_container_width=True):
+                if st.button("📥 Xuất Cấu Hình", key="export_config", width='stretch'):
                     import json
                     config_export = {
                         'removed_columns': st.session_state.get('removed_columns_config', {}),
@@ -470,7 +470,7 @@ def render():
                 pending_count = pending_missing + pending_encoding + pending_validation
                 
                 if pending_count > 0:
-                    if st.button(f"🗑️ Xóa {pending_count} Chờ Áp Dụng", key="clear_pending", use_container_width=True, type="secondary"):
+                    if st.button(f"🗑️ Xóa {pending_count} Chờ Áp Dụng", key="clear_pending", width='stretch', type="secondary"):
                         # Clear only pending configs
                         # Keep applied encoding configs
                         st.session_state.encoding_config = {
@@ -533,7 +533,7 @@ def render():
                     'Số lượng thiếu': missing_data.values,
                     'Tỷ lệ (%)': (missing_data.values / len(data) * 100).round(2)
                 })
-                st.dataframe(missing_df, use_container_width=True, hide_index=True)
+                st.dataframe(missing_df, width='stretch', hide_index=True)
             
             else:
                 st.success("✅ Không có giá trị thiếu trong dataset")
@@ -565,7 +565,7 @@ def render():
                     margin=dict(l=0, r=0, t=30, b=0)
                 )
                 fig.update_traces(marker_color='#ff6b6b')
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             else:
                 st.success("✨ Dữ liệu hoàn chỉnh, không có giá trị thiếu!")
 
@@ -839,7 +839,7 @@ def render():
                 with target_col1:
                     st.success(f"🎯 Cột target: `{target_col}`")
                 with target_col2:
-                    if st.button("↩️ Bỏ chọn", key="undo_target_selection", help="Bỏ chọn cột target", use_container_width=True):
+                    if st.button("↩️ Bỏ chọn", key="undo_target_selection", help="Bỏ chọn cột target", width='stretch'):
                         st.session_state.target_column = None
                         st.info("✅ Đã bỏ chọn target")
                         st.rerun()
@@ -850,7 +850,7 @@ def render():
                     options=data.columns.tolist(),
                     key="temp_target_select"
                 )
-                if st.button("💾 Lưu Target", key="save_temp_target", use_container_width=True):
+                if st.button("💾 Lưu Target", key="save_temp_target", width='stretch'):
                     st.session_state.target_column = target_col
                     st.success(f"✅ Đã lưu target: `{target_col}`")
                     st.rerun()
@@ -913,7 +913,7 @@ def render():
             )
             
             # Split button
-            if st.button("✂️ Chia Tập Dữ Liệu", type="primary", use_container_width=True, key="split_data_btn"):
+            if st.button("✂️ Chia Tập Dữ Liệu", type="primary", width='stretch', key="split_data_btn"):
                 if test_ratio >= 0 and target_col and target_col in data.columns:
                     try:
                         from sklearn.model_selection import train_test_split
@@ -1028,7 +1028,7 @@ def render():
                 st.caption("💡 Các bước xử lý sẽ được áp dụng trên Train, sau đó transform cho Valid/Test")
                 
                 # Reset split button
-                if st.button("🔄 Reset & Merge Tất Cả", key="reset_split", type="secondary", use_container_width=True):
+                if st.button("🔄 Reset & Merge Tất Cả", key="reset_split", type="secondary", width='stretch'):
                     # Merge all back
                     all_data = pd.concat([
                         st.session_state.train_data,
@@ -1110,7 +1110,7 @@ def render():
                     })
                 
                 cols_df = pd.DataFrame(cols_info)
-                st.dataframe(cols_df, use_container_width=True, hide_index=True, height=300)
+                st.dataframe(cols_df, width='stretch', hide_index=True, height=300)
                 
                 # Select columns to remove
                 cols_to_remove = st.multiselect(
@@ -1120,7 +1120,7 @@ def render():
                     help="Chọn các cột định danh cần loại bỏ khỏi dataset"
                 )
                 
-                if st.button("🗑️ Loại Bỏ Các Cột Đã Chọn", key="remove_id_cols", use_container_width=True, type="primary"):
+                if st.button("🗑️ Loại Bỏ Các Cột Đã Chọn", key="remove_id_cols", width='stretch', type="primary"):
                     if cols_to_remove:
                         # Initialize removed_columns_config if not exists
                         if 'removed_columns_config' not in st.session_state:
@@ -1209,7 +1209,7 @@ def render():
                         if 'validation_config' not in st.session_state:
                             st.session_state.validation_config = {}
                         
-                        if st.button("✅ Áp Dụng Cho Tất Cả Cột", key="apply_negative", use_container_width=True, type="primary"):
+                        if st.button("✅ Áp Dụng Cho Tất Cả Cột", key="apply_negative", width='stretch', type="primary"):
                             if total_invalid > 0:
                                 # Backup and apply for each column
                                 if 'column_backups' not in st.session_state:
@@ -1260,7 +1260,7 @@ def render():
                             key="min_action"
                         )
                         
-                        if st.button("✅ Áp Dụng Cho Tất Cả Cột", key="apply_min", use_container_width=True, type="primary"):
+                        if st.button("✅ Áp Dụng Cho Tất Cả Cột", key="apply_min", width='stretch', type="primary"):
                             if total_invalid > 0:
                                 if 'column_backups' not in st.session_state:
                                     st.session_state.column_backups = {}
@@ -1311,7 +1311,7 @@ def render():
                             key="max_action"
                         )
                         
-                        if st.button("✅ Áp Dụng Cho Tất Cả Cột", key="apply_max", use_container_width=True, type="primary"):
+                        if st.button("✅ Áp Dụng Cho Tất Cả Cột", key="apply_max", width='stretch', type="primary"):
                             if total_invalid > 0:
                                 if 'column_backups' not in st.session_state:
                                     st.session_state.column_backups = {}
@@ -1363,7 +1363,7 @@ def render():
                             help="Clamp: giới hạn giá trị trong khoảng min-max"
                         )
                         
-                        if st.button("✅ Áp Dụng Cho Tất Cả Cột", key="apply_range", use_container_width=True, type="primary"):
+                        if st.button("✅ Áp Dụng Cho Tất Cả Cột", key="apply_range", width='stretch', type="primary"):
                             if total_invalid > 0:
                                 if 'column_backups' not in st.session_state:
                                     st.session_state.column_backups = {}
@@ -1466,7 +1466,7 @@ def render():
                 
                 st.dataframe(
                     display_data.style.apply(highlight_selected_col_missing, axis=1),
-                    use_container_width=True,
+                    width='stretch',
                     height=400
                 )
             
@@ -1520,7 +1520,7 @@ def render():
                     st.session_state.missing_config = {}
                 
                 # Process button
-                if st.button("✅ Xử Lý Tất Cả Cột Đã Chọn", key="add_config_all_missing", use_container_width=True, type="primary"):
+                if st.button("✅ Xử Lý Tất Cả Cột Đã Chọn", key="add_config_all_missing", width='stretch', type="primary"):
                     with st.spinner(f"Đang xử lý {len(selected_missing_cols)} cột..."):
                         processed_count = 0
                         total_filled = 0
@@ -1609,7 +1609,7 @@ def render():
                     for col, cfg in st.session_state.missing_config.items()
                 ])
                 
-                st.dataframe(config_df, use_container_width=True, hide_index=True)
+                st.dataframe(config_df, width='stretch', hide_index=True)
                 
                 # Undo specific column
                 st.markdown("**Hoàn tác từng cột:**")
@@ -1730,7 +1730,7 @@ def render():
                     help="Chọn các cột số cần phát hiện và xử lý outliers"
                 )
                 
-                if st.button("✅ Xử Lý Outliers", key="apply_outliers", use_container_width=True, type="primary"):
+                if st.button("✅ Xử Lý Outliers", key="apply_outliers", width='stretch', type="primary"):
                     if selected_outlier_cols:
                         with st.spinner(f"Đang xử lý outliers bằng {outlier_method}..."):
                             try:
@@ -1830,7 +1830,7 @@ def render():
                     if outlier_summary:
                         st.dataframe(
                             pd.DataFrame(outlier_summary),
-                            use_container_width=True,
+                            width='stretch',
                             hide_index=True,
                             height=min(300, len(outlier_summary) * 40 + 50)
                         )
@@ -1878,7 +1878,7 @@ def render():
                 if outlier_stats:
                     st.dataframe(
                         pd.DataFrame(outlier_stats),
-                        use_container_width=True,
+                        width='stretch',
                         hide_index=True
                     )
                     st.caption("💡 Sử dụng phương pháp IQR (k=1.5) để preview")
@@ -1981,7 +1981,7 @@ def render():
                     if not can_apply:
                         st.warning(warning_msg)
                     
-                    if st.button("✅ Áp Dụng Biến Đổi", key="apply_transform", use_container_width=True, type="primary", disabled=not can_apply):
+                    if st.button("✅ Áp Dụng Biến Đổi", key="apply_transform", width='stretch', type="primary", disabled=not can_apply):
                         with st.spinner(f"Đang biến đổi cột {selected_transform_col}..."):
                             # Backup
                             if 'transform_backup' not in st.session_state:
@@ -2043,7 +2043,7 @@ def render():
                         showlegend=False
                     )
                     
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
                     
                     # Show statistics
                     st.markdown("##### 📈 Thống Kê")
@@ -2058,7 +2058,7 @@ def render():
                             f"{col_data_viz.skew():.3f}"
                         ]
                     })
-                    st.dataframe(stats_df, use_container_width=True, hide_index=True)
+                    st.dataframe(stats_df, width='stretch', hide_index=True)
         
         # Section 6: Mã Hóa Biến Phân Loại
         st.markdown("---")
@@ -2085,7 +2085,7 @@ def render():
                     })
                 
                 cat_df = pd.DataFrame(cat_summary)
-                st.dataframe(cat_df, use_container_width=True, hide_index=True)
+                st.dataframe(cat_df, width='stretch', hide_index=True)
             
             with col_enc2:
                 st.markdown("##### ⚙️ Cấu Hình Mã Hóa Từng Cột")
@@ -2192,7 +2192,7 @@ def render():
                     st.session_state.encoding_config = {}
                 
                 # Add and apply immediately
-                if st.button("➕ Thêm Cấu Hình", key="add_enc_config", use_container_width=True, type="primary"):
+                if st.button("➕ Thêm Cấu Hình", key="add_enc_config", width='stretch', type="primary"):
                     try:
                         with st.spinner(f"Đang mã hóa `{selected_enc_col}`..."):
                             from backend.data_processing import encode_categorical
@@ -2251,7 +2251,7 @@ def render():
                     with col3:
                         if cfg.get('applied', False):
                             # Undo button for applied encoding
-                            if st.button("↩️ Undo", key=f"undo_enc_{col}", use_container_width=True):
+                            if st.button("↩️ Undo", key=f"undo_enc_{col}", width='stretch'):
                                 # Restore from backup
                                 backup_key = f"encoding_{col}"
                                 if backup_key in st.session_state.get('column_backups', {}):
@@ -2272,7 +2272,7 @@ def render():
                                     st.rerun()
                         else:
                             # Delete button for pending config
-                            if st.button("🗑️", key=f"del_enc_{col}", use_container_width=True):
+                            if st.button("🗑️", key=f"del_enc_{col}", width='stretch'):
                                 del st.session_state.encoding_config[col]
                                 st.success(f"✅ Đã xóa cấu hình")
                                 st.rerun()
@@ -2376,7 +2376,7 @@ def render():
                     key="new_bin_col_name"
                 )
                 
-                if st.button("🔄 Thực Hiện Binning", key="apply_binning_btn", type="primary", use_container_width=True):
+                if st.button("🔄 Thực Hiện Binning", key="apply_binning_btn", type="primary", width='stretch'):
                     try:
                         with st.spinner("Đang thực hiện binning..."):
                             # Get data and remove NaN values for binning
@@ -2488,7 +2488,7 @@ def render():
                             showlegend=False,
                             margin=dict(l=0, r=0, t=30, b=0)
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
                 
                 # Show binning history
                 if st.session_state.get('binning_config'):
@@ -2582,7 +2582,7 @@ def render():
                     help="Nếu check: tạo cột mới với suffix '_scaled'\nNếu không: ghi đè lên cột gốc"
                 )
                 
-                if st.button("🔄 Thực Hiện Scaling", key="apply_scaling_btn", type="primary", use_container_width=True):
+                if st.button("🔄 Thực Hiện Scaling", key="apply_scaling_btn", type="primary", width='stretch'):
                     if selected_scale_cols:
                         try:
                             with st.spinner(f"Đang scaling {len(selected_scale_cols)} cột..."):
@@ -2705,7 +2705,7 @@ def render():
                             showlegend=False,
                             margin=dict(l=0, r=0, t=30, b=0)
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
         else:
             st.info("💡 Không có biến số để scaling")
         
@@ -2749,7 +2749,7 @@ def render():
                 help="auto: cân bằng về class đa số\nminority: chỉ oversample class thiểu số\nnot majority: oversample tất cả trừ class đa số"
             )
             
-            if st.button("✅ Cân Bằng Dữ Liệu", key="apply_balance", use_container_width=True, type="primary"):
+            if st.button("✅ Cân Bằng Dữ Liệu", key="apply_balance", width='stretch', type="primary"):
                 if target_col_balance and target_col_balance in data.columns:
                     try:
                         with st.spinner(f"Đang cân bằng dữ liệu bằng {balance_method}..."):
@@ -3013,7 +3013,7 @@ def render():
                         showlegend=False
                     )
                     
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
                     
                     # Show additional info
                     col_info1, col_info2, col_info3 = st.columns(3)
@@ -3031,7 +3031,7 @@ def render():
                             'Importance Score': sorted_scores,
                             'Percentage': [f"{score*100:.2f}%" for score in sorted_scores]
                         })
-                        st.dataframe(importance_df, use_container_width=True, hide_index=True)
+                        st.dataframe(importance_df, width='stretch', hide_index=True)
                     
                     # Feature selection recommendation
                     st.markdown("---")
@@ -3165,7 +3165,7 @@ def render():
                         for feat, results in st.session_state.woe_results.items()
                     ]).sort_values('IV', ascending=False, key=lambda x: x.str.replace('[^0-9.]', '', regex=True).astype(float))
                     
-                    st.dataframe(woe_df, use_container_width=True, hide_index=True)
+                    st.dataframe(woe_df, width='stretch', hide_index=True)
                     
                     # IV interpretation guide
                     st.markdown("""
@@ -3209,7 +3209,7 @@ def render():
                         showlegend=False
                     )
                     
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
                 else:
                     st.info("💡 Nhấn nút 'Tính WOE & IV' bên trái để bắt đầu phân tích")
         
@@ -3315,7 +3315,7 @@ def render():
                         lambda x: '🔴 Cao' if x > 10 else '🟡 Trung bình' if x > threshold else '🟢 OK'
                     )
                     
-                    st.dataframe(vif_df, use_container_width=True, hide_index=True)
+                    st.dataframe(vif_df, width='stretch', hide_index=True)
                     
                     # VIF interpretation
                     st.markdown("""
@@ -3360,7 +3360,7 @@ def render():
                         showlegend=False
                     )
                     
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
                     
                     # Recommendations
                     high_vif = vif_df[vif_df['VIF'] > threshold]
@@ -3394,7 +3394,7 @@ def render():
                         xaxis={'side': 'bottom'},
                     )
                     
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
                     
                     # Find high correlations
                     high_corr_pairs = []
@@ -3411,7 +3411,7 @@ def render():
                     if len(high_corr_pairs) > 0:
                         st.warning(f"⚠️ Phát hiện {len(high_corr_pairs)} cặp biến có tương quan cao (|r| > {threshold}):")
                         high_corr_df = pd.DataFrame(high_corr_pairs)
-                        st.dataframe(high_corr_df, use_container_width=True, hide_index=True)
+                        st.dataframe(high_corr_df, width='stretch', hide_index=True)
                         st.info("💡 Đề xuất: Xem xét loại bỏ một trong hai biến có tương quan cao")
                     else:
                         st.success(f"✅ Không phát hiện cặp biến nào có tương quan > {threshold}")

@@ -24,6 +24,27 @@ import sys
 
 # Enable logging
 
+# Add anchor at top of page for scroll reset
+st.markdown('<div id="top"></div>', unsafe_allow_html=True)
+
+# CSS to help with scroll behavior
+st.markdown("""
+<style>
+    /* Prevent scroll jump issues */
+    .main .block-container {
+        padding-top: 1rem;
+    }
+    /* Smooth scroll behavior */
+    html {
+        scroll-behavior: smooth;
+    }
+    /* Auto scroll to top on page load */
+    .stApp {
+        scroll-margin-top: 0;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Load CSS tùy chỉnh
 try:
     load_custom_css()
@@ -101,6 +122,19 @@ with st.sidebar:
     st.caption("© 2025 Credit Scoring System v1.0")
 
 # Định tuyến trang với logging
+# Track page change to handle scroll
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = page
+    
+page_changed = st.session_state.current_page != page
+if page_changed:
+    st.session_state.current_page = page
+    # Add JavaScript to scroll to top when page changes
+    st.markdown("""
+    <script>
+        window.parent.document.querySelector('section.main').scrollTo(0, 0);
+    </script>
+    """, unsafe_allow_html=True)
 
 try:
     if page == "◉ Dashboard":

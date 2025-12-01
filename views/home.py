@@ -121,6 +121,6 @@ def render():
     st.markdown("<br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        if st.button("▶ Get Started - Upload Data", use_container_width=True, type="primary"):
+        if st.button("▶ Get Started - Upload Data", width='stretch', type="primary"):
             st.info("← Please select '↑ Data Upload & Analysis' from the sidebar to begin!")
 

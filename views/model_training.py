@@ -158,7 +158,7 @@ def render():
             st.markdown("---")
             
             # Train button
-            if st.button("🚀 Huấn Luyện Mô Hình", type="primary", use_container_width=True):
+            if st.button("🚀 Huấn Luyện Mô Hình", type="primary", width='stretch'):
                 try:
                     with st.spinner(f"Đang huấn luyện {model_type}..."):
                         # Prepare data
@@ -354,7 +354,7 @@ def render():
                                 'Recall': '{:.3f}',
                                 'F1': '{:.3f}',
                                 'AUC': '{:.3f}'
-                            }).background_gradient(subset=['AUC'], cmap='RdYlGn'), use_container_width=True)
+                            }).background_gradient(subset=['AUC'], cmap='RdYlGn'), width='stretch')
                     except Exception as e:
                         st.error(f"❌ Lỗi khi chạy Cross-Validation: {str(e)}")
                         import traceback
@@ -493,7 +493,7 @@ def render():
                     height=400
                 )
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
                 
                 # Metrics explanation
                 st.markdown("""
@@ -546,7 +546,7 @@ def render():
                     legend=dict(x=0.6, y=0.1)
                 )
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             
             st.markdown("---")
             
@@ -582,7 +582,7 @@ def render():
                         'Recall': '{:.3f}',
                         'F1-Score': '{:.3f}'
                     }).background_gradient(subset=['Precision', 'Recall', 'F1-Score'], cmap='Greens'),
-                    use_container_width=True
+                    width='stretch'
                 )
             
             with col2:
@@ -615,14 +615,14 @@ def render():
                     height=300
                 )
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             
             # Download results
             st.markdown("---")
             col1, col2, col3 = st.columns([1, 1, 1])
             
             with col2:
-                if st.button("💾 Lưu Mô Hình", use_container_width=True):
+                if st.button("💾 Lưu Mô Hình", width='stretch'):
                     st.success("✅ Đã lưu mô hình!")
     
     # Tab 3: Model Comparison
@@ -694,7 +694,7 @@ def render():
                     'F1-Score': '{:.3f}',
                     'AUC': '{:.3f}'
                 }).background_gradient(subset=['Accuracy', 'Precision', 'Recall', 'F1-Score', 'AUC'], cmap='RdYlGn'),
-                use_container_width=True
+                width='stretch'
             )
             
             st.markdown("---")
@@ -739,7 +739,7 @@ def render():
                     barmode='group'
                 )
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             
             with col2:
                 # Line chart for AUC trend
@@ -752,7 +752,7 @@ def render():
                     title='Xu Hướng AUC Theo Thời Gian'
                 )
                 fig.update_layout(template="plotly_dark", height=400)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             
             # Best model recommendation
             best_run_idx = history_df['AUC'].idxmax()

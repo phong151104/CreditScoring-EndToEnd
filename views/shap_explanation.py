@@ -49,7 +49,7 @@ def render():
     if st.session_state.get('shap_explainer_obj') is None or st.session_state.get('shap_values_computed') is None:
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            if st.button("🔄 Khởi Tạo SHAP Explainer", use_container_width=True, type="primary"):
+            if st.button("🔄 Khởi Tạo SHAP Explainer", width='stretch', type="primary"):
                 try:
                     with st.spinner("Đang tính toán SHAP values... (có thể mất vài phút)"):
                         from backend.explainability import initialize_shap_explainer
@@ -136,7 +136,7 @@ def render():
                 showlegend=False
             )
             
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
             
             st.info("💡 **Giải thích**: Biểu đồ này cho thấy mức độ ảnh hưởng trung bình của mỗi đặc trưng đến dự đoán của mô hình.")
         
@@ -146,7 +146,7 @@ def render():
             st.dataframe(
                 feature_importance_df.style.format({'Importance': '{:.4f}'})
                 .background_gradient(subset=['Importance'], cmap='Reds'),
-                use_container_width=True,
+                width='stretch',
                 height=400
             )
             
@@ -207,7 +207,7 @@ def render():
             yaxis=dict(showticklabels=False)
         )
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         
         st.markdown("""
         <div style="background-color: #262730; padding: 1rem; border-radius: 8px;">
@@ -301,7 +301,7 @@ def render():
                 showlegend=False
             )
             
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
             
             # Summary
             st.markdown(f"""
@@ -342,7 +342,7 @@ def render():
                         'SHAP Value': '{:+.4f}',
                         'Value': '{:.2f}'
                     }).background_gradient(subset=['SHAP Value'], cmap='Reds'),
-                    use_container_width=True
+                    width='stretch'
                 )
             else:
                 st.info("Không có tác động tích cực")
@@ -367,7 +367,7 @@ def render():
                         'SHAP Value': '{:+.4f}',
                         'Value': '{:.2f}'
                     }).background_gradient(subset=['SHAP Value'], cmap='Greens'),
-                    use_container_width=True
+                    width='stretch'
                 )
             else:
                 st.info("Không có tác động tiêu cực")
@@ -387,7 +387,7 @@ def render():
                 'SHAP Value': '{:+.4f}',
                 'Value': '{:.2f}'
             }),
-            use_container_width=True,
+            width='stretch',
             height=300
         )
     
@@ -431,7 +431,7 @@ def render():
                     key="analysis_sample"
                 )
             
-            if st.button("🤖 Tạo Phân Tích AI", use_container_width=True, type="primary"):
+            if st.button("🤖 Tạo Phân Tích AI", width='stretch', type="primary"):
                 with st.spinner("🤖 AI đang phân tích SHAP values... (có thể mất vài giây)"):
                     try:
                         # Create SHAP Analyzer
@@ -490,7 +490,7 @@ def render():
             st.markdown("<br>", unsafe_allow_html=True)
             
             # Recalculate button
-            if st.button("🔄 Tính Lại SHAP", use_container_width=True):
+            if st.button("🔄 Tính Lại SHAP", width='stretch'):
                 st.session_state.shap_explainer_obj = None
                 st.session_state.shap_values_computed = None
                 st.session_state.explainer = None
@@ -542,7 +542,7 @@ def render():
                 label_visibility="collapsed"
             )
         with col_btn:
-            send_clicked = st.button("📤 Gửi", key="send_question", use_container_width=True, type="primary")
+            send_clicked = st.button("📤 Gửi", key="send_question", width='stretch', type="primary")
         
         if send_clicked and user_question:
             with st.spinner("🤖 AI đang suy nghĩ..."):
@@ -600,7 +600,7 @@ def render():
         cols = st.columns(2)
         for i, q in enumerate(sample_questions):
             with cols[i % 2]:
-                if st.button(f"💬 {q[:40]}...", key=f"sample_q_{i}", use_container_width=True):
+                if st.button(f"💬 {q[:40]}...", key=f"sample_q_{i}", width='stretch'):
                     st.session_state.sample_question_selected = q
                     st.rerun()
         

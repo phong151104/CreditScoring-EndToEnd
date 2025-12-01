@@ -192,7 +192,7 @@ def render():
                 st.markdown("---")
                 
                 # Display the dataframe with pagination
-                st.dataframe(display_data, use_container_width=True, height=500)
+                st.dataframe(display_data, width='stretch', height=500)
                 
                 # Data info
                 col1, col2, col3, col4 = st.columns(4)
@@ -223,7 +223,7 @@ def render():
                     # Highlight styling
                     st.dataframe(
                         stats_df.style.background_gradient(cmap='viridis', subset=['mean', 'std']),
-                        use_container_width=True
+                        width='stretch'
                     )
                     
                     # Download stats
@@ -291,7 +291,7 @@ def render():
                                 xaxis_title=selected_numeric_col,
                                 yaxis_title="Frequency"
                             )
-                            st.plotly_chart(fig_hist, use_container_width=True)
+                            st.plotly_chart(fig_hist, width='stretch')
                         
                         with chart_col2:
                             # Box plot for outlier detection
@@ -310,7 +310,7 @@ def render():
                                 showlegend=False,
                                 yaxis_title=selected_numeric_col
                             )
-                            st.plotly_chart(fig_box, use_container_width=True)
+                            st.plotly_chart(fig_box, width='stretch')
                         
                         # Quantile and outlier analysis
                         st.markdown("---")
@@ -325,7 +325,7 @@ def render():
                             })
                             st.dataframe(
                                 quantile_df.style.format({'Giá trị': '{:.2f}'}),
-                                use_container_width=True,
+                                width='stretch',
                                 hide_index=True
                             )
                         
@@ -349,7 +349,7 @@ def render():
                                     f"{outlier_pct:.2f}%"
                                 ]
                             })
-                            st.dataframe(outlier_info, use_container_width=True, hide_index=True)
+                            st.dataframe(outlier_info, width='stretch', hide_index=True)
                         
                         # Distribution characteristics
                         st.markdown("---")
@@ -421,7 +421,7 @@ def render():
                             'Tỷ lệ (%)': (bin_counts.values / len(col_data) * 100).round(2)
                         })
                         
-                        st.dataframe(bin_df, use_container_width=True, hide_index=True)
+                        st.dataframe(bin_df, width='stretch', hide_index=True)
                         
                         # Histogram of bins
                         fig_bin = px.bar(
@@ -437,7 +437,7 @@ def render():
                             height=350,
                             xaxis_tickangle=-45
                         )
-                        st.plotly_chart(fig_bin, use_container_width=True)
+                        st.plotly_chart(fig_bin, width='stretch')
                 
                 # Categorical columns
                 categorical_data = data.select_dtypes(include=['object', 'category'])
@@ -456,7 +456,7 @@ def render():
                         })
                     
                     cat_df = pd.DataFrame(cat_info)
-                    st.dataframe(cat_df, use_container_width=True)
+                    st.dataframe(cat_df, width='stretch')
             
             # Tab 3: Data Distribution
             elif selected_tab == "📈 Phân Phối Dữ Liệu":
@@ -492,7 +492,7 @@ def render():
                             height=600
                         )
                         
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
                         
                         # Find high correlations
                         st.markdown("#### 🔍 Các Cặp Biến Có Tương Quan Cao")
@@ -511,7 +511,7 @@ def render():
                                     })
                         
                         if high_corr:
-                            st.dataframe(pd.DataFrame(high_corr), use_container_width=True, hide_index=True)
+                            st.dataframe(pd.DataFrame(high_corr), width='stretch', hide_index=True)
                         else:
                             st.info(f"Không tìm thấy cặp biến nào có tương quan >= {threshold}")
                     else:
@@ -550,7 +550,7 @@ def render():
                             
                             fig.update_traces(diagonal_visible=False, showupperhalf=False)
                             
-                            st.plotly_chart(fig, use_container_width=True)
+                            st.plotly_chart(fig, width='stretch')
                             
                             st.info("💡 **Gợi ý**: Tìm kiếm các pattern tuyến tính hoặc phi tuyến giữa các cặp biến.")
                         else:
@@ -604,7 +604,7 @@ def render():
                             height=600
                         )
                         
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
                         
                         # Calculate correlation
                         corr = data[x_var].corr(data[y_var])
@@ -689,7 +689,7 @@ def render():
                             xaxis_tickangle=-45
                         )
                         
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
                         
                         # Statistics by group
                         st.markdown("#### 📊 Thống Kê Theo Nhóm")
@@ -702,7 +702,7 @@ def render():
                             ('Max', 'max')
                         ]).round(2)
                         
-                        st.dataframe(group_stats, use_container_width=True)
+                        st.dataframe(group_stats, width='stretch')
                     else:
                         if not numeric_cols:
                             st.warning("Không có biến số nào trong dữ liệu.")
@@ -753,7 +753,7 @@ def render():
                 with col1:
                     analysis_button = st.button(
                         "🔄 Tạo Phân Tích AI" if is_llm_configured else "📊 Tạo Phân Tích Tự Động",
-                        use_container_width=True,
+                        width='stretch',
                         type="primary",
                         key="ai_analysis_btn"
                     )
@@ -958,7 +958,7 @@ QUAN TRỌNG:
                         data=st.session_state.ai_analysis,
                         file_name="eda_analysis.md",
                         mime="text/markdown",
-                        use_container_width=True
+                        width='stretch'
                     )
                 else:
                     st.markdown("---")
@@ -979,7 +979,7 @@ QUAN TRỌNG:
             with col_info2:
                 st.info("💾 Dữ liệu đã lưu trong session")
             with col_info3:
-                if st.button("🗑️ Xóa & Upload Mới", use_container_width=True, key="clear_and_upload"):
+                if st.button("🗑️ Xóa & Upload Mới", width='stretch', key="clear_and_upload"):
                     clear_data_related_state()
                     st.success("✅ Đã xóa! Upload file mới bên dưới.")
                     st.rerun()
@@ -1097,7 +1097,7 @@ QUAN TRỌNG:
                     st.markdown(header_html, unsafe_allow_html=True)
                 
                 st.markdown("---")
-                st.dataframe(display_data, use_container_width=True, height=500)
+                st.dataframe(display_data, width='stretch', height=500)
                 
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
@@ -1127,7 +1127,7 @@ QUAN TRỌNG:
                     # Highlight styling
                     st.dataframe(
                         stats_df.style.background_gradient(cmap='viridis', subset=['mean', 'std']),
-                        use_container_width=True
+                        width='stretch'
                     )
                     
                     # Download stats
@@ -1158,7 +1158,7 @@ QUAN TRỌNG:
                         })
                     
                     cat_df = pd.DataFrame(cat_info)
-                    st.dataframe(cat_df, use_container_width=True)
+                    st.dataframe(cat_df, width='stretch')
             
             elif selected_tab == "📈 Phân Phối Dữ Liệu":
                 st.markdown("### 📈 Phân Phối & Tương Quan Dữ Liệu")
@@ -1193,7 +1193,7 @@ QUAN TRỌNG:
                             height=600
                         )
                         
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
                         
                         # Find high correlations
                         st.markdown("#### 🔍 Các Cặp Biến Có Tương Quan Cao")
@@ -1212,7 +1212,7 @@ QUAN TRỌNG:
                                     })
                         
                         if high_corr:
-                            st.dataframe(pd.DataFrame(high_corr), use_container_width=True, hide_index=True)
+                            st.dataframe(pd.DataFrame(high_corr), width='stretch', hide_index=True)
                         else:
                             st.info(f"Không tìm thấy cặp biến nào có tương quan >= {threshold}")
                     else:
@@ -1254,7 +1254,7 @@ QUAN TRỌNG:
                             height=600
                         )
                         
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
                         
                         # Calculate correlation
                         corr = data[x_var].corr(data[y_var])
@@ -1317,7 +1317,7 @@ QUAN TRỌNG:
                 with col1:
                     analysis_button = st.button(
                         "🔄 Tạo Phân Tích AI" if is_llm_configured else "📊 Tạo Phân Tích Tự Động",
-                        use_container_width=True,
+                        width='stretch',
                         type="primary",
                         key="ai_analysis_btn_cached"
                     )
@@ -1512,7 +1512,7 @@ QUAN TRỌNG:
                         data=st.session_state.ai_analysis,
                         file_name="eda_analysis.md",
                         mime="text/markdown",
-                        use_container_width=True,
+                        width='stretch',
                         key="download_analysis_cached"
                     )
                 else:
@@ -1560,5 +1560,5 @@ QUAN TRỌNG:
                 "text/csv"
             )
             
-            st.dataframe(sample_data, use_container_width=True)
+            st.dataframe(sample_data, width='stretch')
 
