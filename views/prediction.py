@@ -72,8 +72,16 @@ def render():
         </div>
         """, unsafe_allow_html=True)
         
-        # Create input form dynamically based on selected features
-        with st.form("prediction_form"):
+        # Hiển thị thông báo nếu vừa dự đoán xong
+        if st.session_state.get('_prediction_success'):
+            st.success(st.session_state._prediction_success)
+            del st.session_state._prediction_success
+        
+        # Sử dụng form container placeholder để có thể ẩn khi đang xử lý
+        form_container = st.container()
+        
+        with form_container:
+            # Create input form dynamically based on selected features
             input_data = {}
             
             # Organize features into columns (3 columns)
@@ -134,18 +142,20 @@ def render():
             
             st.markdown("---")
             
-            # Submit button
+            # Submit button - sử dụng placeholder để tránh nhân đôi hoàn toàn
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
-                submit_button = st.form_submit_button(
-                    "🎯 Dự Đoán Điểm Tín Dụng",
-                    width='stretch',
-                    type="primary"
-                )
+                button_placeholder = st.empty()
+                clicked = button_placeholder.button("🎯 Dự Đoán Điểm Tín Dụng", key="predict_btn", type="primary", use_container_width=True)
         
-        if submit_button:
-            try:
-                with st.spinner("Đang dự đoán..."):
+        # Xử lý bên ngoài form container
+        if clicked:
+            # Xóa toàn bộ nút
+            button_placeholder.empty()
+            
+            # Hiển thị spinner ở vị trí riêng
+            with st.spinner("Đang dự đoán..."):
+                try:
                     # Import prediction backend
                     from backend.models.predictor import predict_single, get_feature_contributions
                     
@@ -171,14 +181,14 @@ def render():
                     st.session_state.prediction_result = result
                     st.session_state.prediction_contributions = contributions
                     
-                    st.success("✅ Đã dự đoán xong! Xem kết quả ở tab 'Kết Quả Dự Đoán'")
-                    st.balloons()
+                    st.session_state._prediction_success = "✅ Đã dự đoán xong! Xem kết quả ở tab 'Kết Quả Dự Đoán'"
+                    st.rerun()
                     
-            except Exception as e:
-                st.error(f"❌ Lỗi khi dự đoán: {str(e)}")
-                import traceback
-                with st.expander("Chi tiết lỗi"):
-                    st.code(traceback.format_exc())
+                except Exception as e:
+                    st.error(f"❌ Lỗi khi dự đoán: {str(e)}")
+                    import traceback
+                    with st.expander("Chi tiết lỗi"):
+                        st.code(traceback.format_exc())
     
     # Tab 2: Prediction Results
     with tab2:

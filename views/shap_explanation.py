@@ -49,7 +49,13 @@ def render():
     if st.session_state.get('shap_explainer_obj') is None or st.session_state.get('shap_values_computed') is None:
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            if st.button("🔄 Khởi Tạo SHAP Explainer", width='stretch', type="primary"):
+            # Sử dụng placeholder để tránh nút bị nhân đôi khi đang xử lý
+            button_placeholder = st.empty()
+            
+            if button_placeholder.button("🔄 Khởi Tạo SHAP Explainer", key="init_shap_btn", type="primary", use_container_width=True):
+                # Xóa nút và thay bằng spinner
+                button_placeholder.empty()
+                
                 try:
                     with st.spinner("Đang tính toán SHAP values... (có thể mất vài phút)"):
                         from backend.explainability import initialize_shap_explainer

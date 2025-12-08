@@ -2017,6 +2017,125 @@ def balancing_fragment(data):
             st.info("💡 Chưa xác định được target column. Vui lòng chọn target ở phần cấu hình bên trái.")
 
 
+@st.fragment
+def feature_selection_fragment(data):
+    """Fragment để chọn đặc trưng cho mô hình - không gây rerun toàn trang"""
+    
+    # Hiển thị thông báo thành công nếu có
+    if st.session_state.get('_feature_selection_success'):
+        st.success(st.session_state._feature_selection_success)
+        del st.session_state._feature_selection_success
+    
+    st.markdown("""
+    <div style="background-color: #262730; padding: 1rem; border-radius: 8px; margin: 1rem 0;">
+        <p style="margin: 0;">📋 <strong>Chọn các đặc trưng</strong> bạn muốn sử dụng để huấn luyện mô hình. 
+        Có thể dựa trên feature importance hoặc kiến thức nghiệp vụ.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Get all columns except target
+    all_cols = data.columns.tolist()
+    
+    # Assume last column is target (or let user select)
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        target_col = st.selectbox(
+            "Chọn biến mục tiêu (Target):",
+            all_cols,
+            index=len(all_cols) - 1 if len(all_cols) > 0 else 0,
+            key="target_col_frag"
+        )
+        # Lưu target column vào session state
+        st.session_state.target_column = target_col
+    
+    with col2:
+        st.metric("Số biến có sẵn", len(all_cols) - 1)
+    
+    # Available features (exclude target)
+    available_features = [col for col in all_cols if col != target_col]
+    
+    # Feature selection
+    st.markdown("#### 🎯 Chọn Đặc Trưng")
+    
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        selection_mode = st.radio(
+            "Chế độ chọn:",
+            ["Chọn thủ công", "Chọn tự động (theo threshold)"],
+            key="selection_mode_frag"
+        )
+        
+        if selection_mode == "Chọn tự động (theo threshold)":
+            importance_threshold = st.slider(
+                "Ngưỡng importance:",
+                0.0, 1.0, 0.01, 0.01,
+                key="importance_threshold_frag"
+            )
+            
+            if st.button("🔄 Chọn Tự Động", key="auto_select_frag"):
+                # Mock auto selection
+                num_selected = np.random.randint(5, min(15, len(available_features)))
+                selected = np.random.choice(available_features, num_selected, replace=False).tolist()
+                st.session_state.selected_features = selected
+                st.session_state._feature_selection_success = f"✅ Đã chọn tự động {len(selected)} đặc trưng!"
+                st.rerun(scope="fragment")
+    
+    with col2:
+        # Manual selection
+        if selection_mode == "Chọn thủ công":
+            selected_features = st.multiselect(
+                "Chọn các đặc trưng:",
+                available_features,
+                default=st.session_state.selected_features if st.session_state.selected_features else available_features[:min(10, len(available_features))],
+                key="manual_features_frag"
+            )
+            
+            if st.button("💾 Lưu Lựa Chọn", key="save_selection_frag", type="primary"):
+                st.session_state.selected_features = selected_features
+                st.session_state._feature_selection_success = f"✅ Đã lưu {len(selected_features)} đặc trưng!"
+                st.rerun(scope="fragment")
+        else:
+            # Display auto-selected features
+            if st.session_state.selected_features:
+                st.multiselect(
+                    "Đặc trưng đã chọn:",
+                    available_features,
+                    default=[f for f in st.session_state.selected_features if f in available_features],
+                    disabled=True,
+                    key="auto_features_display_frag"
+                )
+    
+    st.markdown("---")
+    
+    # Summary
+    if st.session_state.selected_features:
+        st.success(f"✅ **Đã chọn {len(st.session_state.selected_features)} đặc trưng cho mô hình**")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            numeric_selected = len([f for f in st.session_state.selected_features 
+                                   if f in data.select_dtypes(include=[np.number]).columns])
+            st.metric("Biến số", numeric_selected)
+        
+        with col2:
+            categorical_selected = len([f for f in st.session_state.selected_features 
+                                       if f in data.select_dtypes(include=['object', 'category']).columns])
+            st.metric("Biến phân loại", categorical_selected)
+        
+        with col3:
+            st.metric("Tổng biến", len(st.session_state.selected_features))
+        
+        # Display selected features
+        with st.expander("📋 Xem Danh Sách Đặc Trưng Đã Chọn"):
+            for i, feat in enumerate(st.session_state.selected_features, 1):
+                st.text(f"{i}. {feat}")
+    else:
+        st.warning("⚠️ Chưa chọn đặc trưng nào. Vui lòng chọn ít nhất một đặc trưng.")
+
+
 def render():
     """Render trang xử lý và chọn biến"""
     init_session_state()
@@ -3516,108 +3635,5 @@ def render():
     with tab3:
         st.markdown("### ✅ Chọn Đặc Trưng Cho Mô Hình")
         
-        st.markdown("""
-        <div style="background-color: #262730; padding: 1rem; border-radius: 8px; margin: 1rem 0;">
-            <p style="margin: 0;">📋 <strong>Chọn các đặc trưng</strong> bạn muốn sử dụng để huấn luyện mô hình. 
-            Có thể dựa trên feature importance hoặc kiến thức nghiệp vụ.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Get all columns except target
-        all_cols = data.columns.tolist()
-        
-        # Assume last column is target (or let user select)
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            target_col = st.selectbox(
-                "Chọn biến mục tiêu (Target):",
-                all_cols,
-                index=len(all_cols) - 1 if len(all_cols) > 0 else 0,
-                key="target_col"
-            )
-        
-        with col2:
-            st.metric("Số biến có sẵn", len(all_cols) - 1)
-        
-        # Available features (exclude target)
-        available_features = [col for col in all_cols if col != target_col]
-        
-        # Feature selection
-        st.markdown("#### 🎯 Chọn Đặc Trưng")
-        
-        col1, col2 = st.columns([1, 2])
-        
-        with col1:
-            selection_mode = st.radio(
-                "Chế độ chọn:",
-                ["Chọn thủ công", "Chọn tự động (theo threshold)"],
-                key="selection_mode"
-            )
-            
-            if selection_mode == "Chọn tự động (theo threshold)":
-                importance_threshold = st.slider(
-                    "Ngưỡng importance:",
-                    0.0, 1.0, 0.01, 0.01,
-                    key="importance_threshold"
-                )
-                
-                if st.button("🔄 Chọn Tự Động", key="auto_select"):
-                    # Mock auto selection
-                    num_selected = np.random.randint(5, min(15, len(available_features)))
-                    selected = np.random.choice(available_features, num_selected, replace=False).tolist()
-                    st.session_state.selected_features = selected
-                    st.success(f"✅ Đã chọn tự động {len(selected)} đặc trưng!")
-        
-        with col2:
-            # Manual selection
-            if selection_mode == "Chọn thủ công":
-                selected_features = st.multiselect(
-                    "Chọn các đặc trưng:",
-                    available_features,
-                    default=st.session_state.selected_features if st.session_state.selected_features else available_features[:min(10, len(available_features))],
-                    key="manual_features"
-                )
-                
-                if st.button("💾 Lưu Lựa Chọn", key="save_selection", type="primary"):
-                    st.session_state.selected_features = selected_features
-                    st.success(f"✅ Đã lưu {len(selected_features)} đặc trưng!")
-            else:
-                # Display auto-selected features
-                if st.session_state.selected_features:
-                    st.multiselect(
-                        "Đặc trưng đã chọn:",
-                        available_features,
-                        default=st.session_state.selected_features,
-                        disabled=True,
-                        key="auto_features_display"
-                    )
-        
-        st.markdown("---")
-        
-        # Summary
-        if st.session_state.selected_features:
-            st.success(f"✅ **Đã chọn {len(st.session_state.selected_features)} đặc trưng cho mô hình**")
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                numeric_selected = len([f for f in st.session_state.selected_features 
-                                       if f in data.select_dtypes(include=[np.number]).columns])
-                st.metric("Biến số", numeric_selected)
-            
-            with col2:
-                categorical_selected = len([f for f in st.session_state.selected_features 
-                                           if f in data.select_dtypes(include=['object', 'category']).columns])
-                st.metric("Biến phân loại", categorical_selected)
-            
-            with col3:
-                st.metric("Tổng biến", len(st.session_state.selected_features))
-            
-            # Display selected features
-            with st.expander("📋 Xem Danh Sách Đặc Trưng Đã Chọn"):
-                for i, feat in enumerate(st.session_state.selected_features, 1):
-                    st.text(f"{i}. {feat}")
-        else:
-            st.warning("⚠️ Chưa chọn đặc trưng nào. Vui lòng chọn ít nhất một đặc trưng.")
-
+        # Sử dụng fragment để không rerun toàn trang khi tương tác
+        feature_selection_fragment(data)

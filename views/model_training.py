@@ -157,8 +157,13 @@ def render():
             
             st.markdown("---")
             
-            # Train button
-            if st.button("🚀 Huấn Luyện Mô Hình", type="primary", width='stretch'):
+            # Train button - sử dụng placeholder để tránh nhân đôi khi đang xử lý
+            train_button_placeholder = st.empty()
+            
+            if train_button_placeholder.button("🚀 Huấn Luyện Mô Hình", type="primary", key="train_model_btn", use_container_width=True):
+                # Xóa nút và thay bằng spinner
+                train_button_placeholder.empty()
+                
                 try:
                     with st.spinner(f"Đang huấn luyện {model_type}..."):
                         # Prepare data
