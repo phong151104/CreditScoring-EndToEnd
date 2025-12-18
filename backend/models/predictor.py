@@ -69,10 +69,23 @@ def predict_single(model, input_data: Dict[str, Any], feature_names: List[str],
             risk_label_vi = 'Cao'
             risk_color = '#ff4444'
         
-        # Calculate credit score (scale 300-850)
-        # Lower probability = higher credit score
-        credit_score = int(850 - (prob_positive * 550))
-        credit_score = max(300, min(850, credit_score))
+        # Calculate credit score using log-odds scaling (industry standard)
+        # Formula: Score = Offset + Factor × ln((1-PD)/PD)
+        # Where: Factor = PDO / ln(2), PDO = Points to Double Odds
+        import math
+        
+        pdo = 20  # Points to Double Odds (standard: 20 points)
+        base_score = 600  # Score at odds = 1 (PD = 50%)
+        
+        factor = pdo / math.log(2)  # ≈ 28.85
+        offset = base_score  # Since ln(1) = 0 at base odds
+        
+        # Handle edge cases to avoid log(0) or division by zero
+        prob_default = max(0.001, min(0.999, prob_positive))  # Clamp PD between 0.1% and 99.9%
+        
+        odds = (1 - prob_default) / prob_default
+        credit_score = int(offset + factor * math.log(odds))
+        credit_score = max(300, min(850, credit_score))  # Clamp to valid range
         
         # Credit score interpretation
         if credit_score >= 750:
@@ -142,7 +155,20 @@ def predict_batch(model, input_df: pd.DataFrame, feature_names: List[str]) -> pd
         results_df = input_df.copy()
         results_df['prediction'] = predictions
         results_df['probability'] = probabilities
-        results_df['credit_score'] = (850 - (probabilities * 550)).astype(int).clip(300, 850)
+        
+        # Calculate credit score using log-odds scaling (industry standard)
+        import math
+        pdo = 20
+        base_score = 600
+        factor = pdo / math.log(2)
+        
+        def calc_score(pd_val):
+            pd_clamped = max(0.001, min(0.999, pd_val))
+            odds = (1 - pd_clamped) / pd_clamped
+            score = int(base_score + factor * math.log(odds))
+            return max(300, min(850, score))
+        
+        results_df['credit_score'] = probabilities.apply(calc_score)
         results_df['risk_level'] = pd.cut(
             probabilities,
             bins=[0, 0.3, 0.6, 1.0],
