@@ -223,12 +223,66 @@ def render():
                         stats_html = ""
                         
                         if pd.api.types.is_numeric_dtype(col_data):
-                            # Numeric - Histogram
+                            # Numeric - Classify into subtypes
                             col_clean = col_data.dropna()
                             if len(col_clean) > 0:
+                                n_unique = col_clean.nunique()
+                                col_min, col_max = col_clean.min(), col_clean.max()
+                                
+                                # Determine chart type and color based on data characteristics
+                                if n_unique <= 10:
+                                    # Discrete/Count variable - Bar chart
+                                    chart_type = "discrete"
+                                    color = '#f59e0b'  # Orange
+                                    edge_color = '#fbbf24'
+                                elif col_min >= 0 and col_max <= 1:
+                                    # Ratio/Percentage - Area-like chart
+                                    chart_type = "ratio"
+                                    color = '#10b981'  # Green
+                                    edge_color = '#34d399'
+                                elif col_min >= 0 and col_max <= 100 and 'rate' in col_name.lower():
+                                    # Percentage rate
+                                    chart_type = "percentage"
+                                    color = '#06b6d4'  # Cyan
+                                    edge_color = '#22d3ee'
+                                else:
+                                    # Continuous - Histogram
+                                    chart_type = "continuous"
+                                    color = '#667eea'  # Purple-blue
+                                    edge_color = '#818cf8'
+                                
                                 fig, ax = plt.subplots(figsize=(2.0, 0.9), facecolor='none')
-                                ax.hist(col_clean, bins=min(20, max(8, len(col_clean) // 10)), 
-                                       color='#667eea', edgecolor='#818cf8', linewidth=0.5, alpha=0.85)
+                                
+                                if chart_type == "discrete":
+                                    # Bar chart for discrete values
+                                    value_counts = col_clean.value_counts().sort_index()
+                                    if len(value_counts) > 8:
+                                        value_counts = value_counts.head(8)
+                                    ax.bar(range(len(value_counts)), value_counts.values, 
+                                          color=color, edgecolor=edge_color, linewidth=0.5, alpha=0.85)
+                                    ax.set_xticks([])
+                                elif chart_type in ["ratio", "percentage"]:
+                                    # Filled area chart for ratios
+                                    sorted_vals = np.sort(col_clean.values)
+                                    x = np.linspace(0, 1, len(sorted_vals))
+                                    ax.fill_between(x, sorted_vals, alpha=0.7, color=color)
+                                    ax.plot(x, sorted_vals, color=edge_color, linewidth=1.5)
+                                else:
+                                    # Histogram with KDE for continuous
+                                    n, bins, patches = ax.hist(col_clean, bins=min(25, max(10, len(col_clean) // 8)), 
+                                           color=color, edgecolor=edge_color, linewidth=0.3, alpha=0.75)
+                                    
+                                    # Add KDE line if enough data
+                                    if len(col_clean) > 30:
+                                        try:
+                                            from scipy.stats import gaussian_kde
+                                            kde = gaussian_kde(col_clean)
+                                            x_kde = np.linspace(col_clean.min(), col_clean.max(), 100)
+                                            y_kde = kde(x_kde) * len(col_clean) * (bins[1] - bins[0])
+                                            ax.plot(x_kde, y_kde, color='#f472b6', linewidth=1.5, alpha=0.9)
+                                        except:
+                                            pass
+                                
                                 ax.set_xticks([])
                                 ax.set_yticks([])
                                 for spine in ax.spines.values():
@@ -243,20 +297,30 @@ def render():
                                 
                                 chart_html = f'<img src="data:image/png;base64,{img_base64}"/>'
                                 
-                                # Stats for numeric
+                                # Stats for numeric - format based on magnitude
+                                def fmt_num(val):
+                                    if abs(val) >= 1000000:
+                                        return f"{val/1000000:.1f}M"
+                                    elif abs(val) >= 1000:
+                                        return f"{val/1000:.1f}K"
+                                    elif abs(val) < 1:
+                                        return f"{val:.3f}"
+                                    else:
+                                        return f"{val:.1f}"
+                                
                                 stats_html = f'''
                                 <div class="feature-card-stats">
                                     <div class="stat-item">
                                         <span class="stat-label">Min</span>
-                                        <span class="stat-value">{col_clean.min():.1f}</span>
+                                        <span class="stat-value">{fmt_num(col_clean.min())}</span>
                                     </div>
                                     <div class="stat-item">
                                         <span class="stat-label">Max</span>
-                                        <span class="stat-value">{col_clean.max():.1f}</span>
+                                        <span class="stat-value">{fmt_num(col_clean.max())}</span>
                                     </div>
                                     <div class="stat-item">
                                         <span class="stat-label">Mean</span>
-                                        <span class="stat-value">{col_clean.mean():.1f}</span>
+                                        <span class="stat-value">{fmt_num(col_clean.mean())}</span>
                                     </div>
                                     <div class="stat-item">
                                         <span class="stat-label">Unique</span>
