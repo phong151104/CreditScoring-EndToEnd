@@ -65,7 +65,7 @@ def render():
             "name": "Huấn luyện",
             "icon": "🧠",
             "done": session_info['has_model'],
-            "detail": (st.session_state.get('model_type') or 'Chưa train')[:12] if session_info['has_model'] else "Chưa train"
+            "detail": (st.session_state.get('selected_model_name') or st.session_state.get('model_type') or 'Đã train')[:12] if session_info['has_model'] else "Chưa train"
         },
         {
             "name": "Chọn model",

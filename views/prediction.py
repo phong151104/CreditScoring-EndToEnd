@@ -100,30 +100,22 @@ def render():
                             max_val = stats.get('max', 1000000)
                             mean_val = stats.get('mean', (min_val + max_val) / 2)
                             
-                            # Handle different ranges
+                            # Allow any value - no strict min/max constraints
+                            # Just use training data range as guidance
                             if max_val - min_val < 10:
-                                # Small range - use slider
+                                # Small range
                                 step = 0.1 if (max_val - min_val) < 5 else 1.0
-                                input_data[feat] = st.number_input(
-                                    feat,
-                                    min_value=float(min_val),
-                                    max_value=float(max_val) * 1.5,  # Allow slightly above max
-                                    value=float(mean_val),
-                                    step=step,
-                                    key=f"input_{feat}",
-                                    help=f"Range: {min_val:.2f} - {max_val:.2f}, Mean: {mean_val:.2f}"
-                                )
                             else:
-                                # Large range - use number input
-                                input_data[feat] = st.number_input(
-                                    feat,
-                                    min_value=float(min_val) * 0.5 if min_val >= 0 else float(min_val) * 1.5,
-                                    max_value=float(max_val) * 1.5,
-                                    value=float(mean_val),
-                                    step=float((max_val - min_val) / 100),
-                                    key=f"input_{feat}",
-                                    help=f"Range: {min_val:.2f} - {max_val:.2f}, Mean: {mean_val:.2f}"
-                                )
+                                step = float((max_val - min_val) / 100)
+                            
+                            # Use text-style number input without strict constraints
+                            input_data[feat] = st.number_input(
+                                feat,
+                                value=float(mean_val),
+                                step=step,
+                                key=f"input_{feat}",
+                                help=f"Training range: {min_val:.2f} - {max_val:.2f}, Mean: {mean_val:.2f} (có thể nhập ngoài khoảng)"
+                            )
                         elif stats.get('dtype') == 'categorical':
                             # Categorical input
                             unique_vals = stats.get('unique_values', ['Option 1', 'Option 2'])
@@ -207,24 +199,40 @@ def render():
         probability = result['probability'] * 100
         risk_label = result['risk_label_vi']
         
-        # Determine score color and status
+        # Get approval status from backend (combines PD + Score)
+        approval_status = result.get('approval_status', 'conditional')
+        approval_label = result.get('approval_label_vi', 'Xem xét')
+        approval_color = result.get('approval_color', '#f59e0b')
+        
+        # Determine score color and label (5-tier)
         if score >= 750:
             score_color = "#10b981"
             score_label = "Xuất sắc"
         elif score >= 650:
             score_color = "#22c55e"
             score_label = "Tốt"
-        elif score >= 500:
+        elif score >= 550:
             score_color = "#f59e0b"
             score_label = "Trung bình"
-        else:
+        elif score >= 450:
             score_color = "#ef4444"
+            score_label = "Kém"
+        else:
+            score_color = "#dc2626"
             score_label = "Rất kém"
         
-        status_bg = "#2d5016" if pred_class == 0 else "#5c1616"
-        status_text = "✅ Đủ điều kiện vay" if pred_class == 0 else "⚠️ Cần xem xét kỹ"
-        score_bg_color = f"{score_color}20"
-        prob_color = "#ef4444" if probability > 50 else "#f59e0b" if probability > 30 else "#22c55e"
+        # Use approval status for header
+        if approval_status == 'approved':
+            status_bg = "#065f46"
+            status_text = "✅ Phê duyệt - Đủ điều kiện vay"
+        elif approval_status == 'conditional':
+            status_bg = "#92400e"
+            status_text = "⚠️ Có thể xem xét vay với điều kiện bổ sung"
+        else:
+            status_bg = "#991b1b"
+            status_text = "❌ Từ chối - Rủi ro cao"
+        
+        prob_color = result.get('risk_color', '#f59e0b')
         
         # Full-width Credit Assessment Card with embedded gauge
         st.markdown(f"""
@@ -248,7 +256,7 @@ def render():
                         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);">
                 <div style="font-size: 3.5rem; font-weight: 800; color: {score_color}; line-height: 1;">{score}</div>
                 <div style="color: #94a3b8; font-size: 1rem; margin-top: 0.3rem;">điểm tín dụng</div>
-                <div style="display: inline-block; background: {score_bg_color}; color: {score_color}; 
+                <div style="display: inline-block; background: {score_color}20; color: {score_color}; 
                             padding: 0.4rem 1rem; border-radius: 15px; font-size: 0.9rem; font-weight: 600; margin-top: 0.5rem;">
                     {score_label}
                 </div>

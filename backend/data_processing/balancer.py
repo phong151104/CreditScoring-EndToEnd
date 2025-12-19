@@ -50,6 +50,21 @@ def balance_data(
         X = data.drop(columns=[target_column])
         y = data[target_column]
         
+        # Handle categorical columns - encode them for SMOTE
+        categorical_cols = X.select_dtypes(include=['object', 'category']).columns.tolist()
+        label_encoders = {}
+        
+        if categorical_cols:
+            from sklearn.preprocessing import LabelEncoder
+            X_encoded = X.copy()
+            for col in categorical_cols:
+                le = LabelEncoder()
+                # Handle NaN values
+                X_encoded[col] = X_encoded[col].fillna('_MISSING_')
+                X_encoded[col] = le.fit_transform(X_encoded[col].astype(str))
+                label_encoders[col] = le
+            X = X_encoded
+        
         # Get original class distribution
         original_dist = y.value_counts().to_dict()
         
@@ -112,6 +127,15 @@ def balance_data(
         
         else:
             raise ValueError(f"Unknown balancing method: {method}")
+        
+        # Decode categorical columns back to original values
+        if categorical_cols:
+            X_resampled = pd.DataFrame(X_resampled, columns=X.columns)
+            for col in categorical_cols:
+                le = label_encoders[col]
+                X_resampled[col] = le.inverse_transform(X_resampled[col].astype(int))
+                # Restore NaN values
+                X_resampled[col] = X_resampled[col].replace('_MISSING_', np.nan)
         
         # Combine back into DataFrame
         balanced_data = pd.concat([X_resampled, y_resampled], axis=1)

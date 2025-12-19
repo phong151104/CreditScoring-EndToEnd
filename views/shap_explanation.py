@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-from utils.ui_components import show_llm_analysis
+# UI components imported as needed
 from utils.session_state import init_session_state
 
 def render():
@@ -514,10 +514,12 @@ def render():
                         # Store in session state
                         st.session_state.last_ai_analysis = ai_response
                         st.session_state.last_analysis_type = analysis_type
+                        st.rerun()  # Refresh to show results properly
                         
                     except Exception as e:
                         ai_response = f"❌ Lỗi khi phân tích: {str(e)}"
                         st.session_state.last_ai_analysis = ai_response
+                        st.rerun()
             
             # Display last analysis
             if 'last_ai_analysis' in st.session_state and st.session_state.last_ai_analysis:

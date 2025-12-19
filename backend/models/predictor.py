@@ -47,59 +47,101 @@ def predict_single(model, input_data: Dict[str, Any], feature_names: List[str],
         # Get probability if available
         if hasattr(model, 'predict_proba'):
             y_proba = model.predict_proba(X)[0]
-            # For binary classification, get probability of positive class
+            # For binary classification, determine which class is "default/bad"
             if len(y_proba) == 2:
-                prob_positive = y_proba[1]
+                # Check model.classes_ to find the index of default class (usually 1)
+                if hasattr(model, 'classes_'):
+                    classes = model.classes_
+                    # Assume class with higher value is "default" (commonly 1 = bad, 0 = good)
+                    # This handles cases where classes might be [0,1], [1,0], or ['good','bad']
+                    default_idx = 1 if len(classes) == 2 else 0
+                    # If classes are strings, try to identify bad class
+                    if isinstance(classes[0], str):
+                        bad_keywords = ['bad', 'default', '1', 'yes', 'true', 'risk']
+                        for i, cls in enumerate(classes):
+                            if any(kw in str(cls).lower() for kw in bad_keywords):
+                                default_idx = i
+                                break
+                    prob_positive = y_proba[default_idx]
+                else:
+                    # Fallback: assume index 1 is default
+                    prob_positive = y_proba[1]
             else:
                 prob_positive = y_proba[0]
         else:
             prob_positive = float(y_pred)
         
-        # Determine risk level
-        if prob_positive < 0.3:
+        # Determine risk level based on PD (5-tier industry standard)
+        if prob_positive < 0.02:
+            risk_level = 'Very Low'
+            risk_label_vi = 'Rất thấp'
+            risk_color = '#10b981'  # Green
+        elif prob_positive < 0.05:
             risk_level = 'Low'
             risk_label_vi = 'Thấp'
-            risk_color = '#44ff44'
-        elif prob_positive < 0.6:
+            risk_color = '#22c55e'  # Light green
+        elif prob_positive < 0.10:
             risk_level = 'Medium'
             risk_label_vi = 'Trung bình'
-            risk_color = '#ffaa00'
-        else:
+            risk_color = '#f59e0b'  # Orange
+        elif prob_positive < 0.20:
             risk_level = 'High'
             risk_label_vi = 'Cao'
-            risk_color = '#ff4444'
+            risk_color = '#ef4444'  # Red
+        else:
+            risk_level = 'Very High'
+            risk_label_vi = 'Rất cao'
+            risk_color = '#dc2626'  # Dark red
         
         # Calculate credit score using log-odds scaling (industry standard)
-        # Formula: Score = Offset + Factor × ln((1-PD)/PD)
-        # Where: Factor = PDO / ln(2), PDO = Points to Double Odds
+        # Formula: Score = Offset + Factor × ln(Odds / Base_Odds)
+        # Industry standard: Score = 600 at odds = 19:1 (PD = 5%)
         import math
         
-        pdo = 20  # Points to Double Odds (standard: 20 points)
-        base_score = 600  # Score at odds = 1 (PD = 50%)
+        pdo = 30  # Points to Double Odds (industry standard: 20-30)
+        base_score = 600  # Score at base odds
+        base_odds = 19  # Odds at base score (19:1 means PD = 5%)
         
-        factor = pdo / math.log(2)  # ≈ 28.85
-        offset = base_score  # Since ln(1) = 0 at base odds
+        factor = pdo / math.log(2)  # ≈ 43.29 with PDO=30
         
-        # Handle edge cases to avoid log(0) or division by zero
-        prob_default = max(0.001, min(0.999, prob_positive))  # Clamp PD between 0.1% and 99.9%
+        # Handle edge cases with soft clamp (use 1e-6 to 1-1e-6)
+        prob_default = max(1e-6, min(1 - 1e-6, prob_positive))
         
         odds = (1 - prob_default) / prob_default
-        credit_score = int(offset + factor * math.log(odds))
+        # Score relative to base odds
+        credit_score = int(base_score + factor * math.log(odds / base_odds))
         credit_score = max(300, min(850, credit_score))  # Clamp to valid range
         
-        # Credit score interpretation
+        # Credit score interpretation (5-tier)
         if credit_score >= 750:
             score_interpretation = 'Xuất sắc'
-            score_description = 'Khách hàng có tín dụng rất tốt, rủi ro thấp'
+            score_description = 'Rủi ro rất thấp - Khách hàng có tín dụng xuất sắc'
         elif credit_score >= 650:
             score_interpretation = 'Tốt'
-            score_description = 'Khách hàng có tín dụng tốt, rủi ro trung bình thấp'
-        elif credit_score >= 500:
+            score_description = 'Chấp nhận được - Khách hàng có tín dụng tốt'
+        elif credit_score >= 550:
             score_interpretation = 'Trung bình'
-            score_description = 'Khách hàng cần cải thiện tín dụng'
-        else:
+            score_description = 'Cần xem xét kỹ - Khách hàng cần cải thiện tín dụng'
+        elif credit_score >= 450:
             score_interpretation = 'Kém'
-            score_description = 'Khách hàng có rủi ro cao'
+            score_description = 'Rủi ro cao - Cần tài sản đảm bảo hoặc bảo lãnh'
+        else:
+            score_interpretation = 'Rất kém'
+            score_description = 'Gần như từ chối - Rủi ro vỡ nợ rất cao'
+        
+        # Approval decision based on BOTH PD and Score (industry best practice)
+        if prob_positive < 0.05 and credit_score >= 650:
+            approval_status = 'approved'
+            approval_label_vi = 'Phê duyệt'
+            approval_color = '#10b981'
+        elif prob_positive < 0.10 or (credit_score >= 550 and credit_score < 650):
+            approval_status = 'conditional'
+            approval_label_vi = 'Cần bổ sung hồ sơ'
+            approval_color = '#f59e0b'
+        else:
+            approval_status = 'rejected'
+            approval_label_vi = 'Từ chối'
+            approval_color = '#ef4444'
         
         result = {
             'prediction': int(y_pred),
@@ -110,6 +152,9 @@ def predict_single(model, input_data: Dict[str, Any], feature_names: List[str],
             'risk_color': risk_color,
             'score_interpretation': score_interpretation,
             'score_description': score_description,
+            'approval_status': approval_status,
+            'approval_label_vi': approval_label_vi,
+            'approval_color': approval_color,
             'input_data': input_data,
             'feature_names': feature_names
         }

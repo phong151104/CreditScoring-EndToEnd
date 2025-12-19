@@ -186,7 +186,7 @@ def get_session_info():
     info = {
         "has_data": st.session_state.data is not None,
         "has_processed_data": st.session_state.processed_data is not None,
-        "has_model": st.session_state.model is not None,
+        "has_model": st.session_state.model is not None or len(st.session_state.get('model_history', [])) > 0,
         "num_features": len(st.session_state.selected_features) if st.session_state.selected_features else 0,
         "num_missing_configs": len(st.session_state.get('missing_config', {})),
         "num_encoding_configs": len(st.session_state.get('encoding_config', {})),

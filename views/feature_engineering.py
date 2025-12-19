@@ -568,6 +568,11 @@ def outliers_transform_fragment(data):
     with col_transform1:
         st.markdown("##### ⚙️ Cấu Hình Biến Đổi")
         
+        # Show success message if transform was applied
+        if st.session_state.get('_transform_success'):
+            st.success(st.session_state._transform_success)
+            st.session_state._transform_success = None
+        
         numeric_cols_transform = current_data.select_dtypes(include=[np.number]).columns.tolist()
         
         if numeric_cols_transform:
@@ -708,8 +713,14 @@ def outliers_transform_fragment(data):
                     if st.session_state.get('test_data') is not None:
                         datasets_info += "/Test"
                     
-                    st.session_state._transform_success = f"✅ Đã áp dụng {transform_method} cho `{selected_transform_col}` trên {datasets_info}"
-                    st.rerun(scope="fragment")
+                    success_msg = f"Đã áp dụng {transform_method} cho '{selected_transform_col}' trên {datasets_info}"
+                    
+                    # Show inline success message
+                    st.success(f"✅ {success_msg}")
+                    
+                    # Calculate new skewness for display
+                    new_skewness = st.session_state.data[selected_transform_col].skew()
+                    st.info(f"📊 Skewness mới: **{new_skewness:.3f}**")
     
     with col_transform2:
         st.markdown("##### 📊 Trực Quan Hóa Phân Phối")
@@ -1027,7 +1038,6 @@ def split_data_fragment(data):
                     st.session_state._split_success = "✅ Đã bỏ chọn target"
                     st.rerun(scope="fragment")
         else:
-            st.warning("⚠️ Chưa chọn cột target. Vui lòng chọn ở trang Upload & EDA")
             target_col = st.selectbox(
                 "Chọn cột target:",
                 options=current_data.columns.tolist(),
@@ -1637,12 +1647,42 @@ def binning_fragment(data):
             
             binning_method = st.selectbox(
                 "Phương pháp binning:",
-                ["Equal Width (Khoảng đều)", "Equal Frequency (Tần suất đều)", "Quantile", "Custom Bins"],
+                ["Optimal Binning (WoE/IV)", "Equal Width (Khoảng đều)", "Equal Frequency (Tần suất đều)", "Quantile", "Custom Bins"],
                 key="binning_method_select_frag",
                 help="Equal Width: chia theo khoảng giá trị bằng nhau\nEqual Frequency: mỗi nhóm có số lượng mẫu tương đương\nQuantile: chia theo phân vị\nCustom: tự định nghĩa các ngưỡng"
             )
             
-            if binning_method == "Custom Bins":
+            # Optimal Binning requires target column
+            target_col_for_binning = None
+            if binning_method == "Optimal Binning (WoE/IV)":
+                st.info("💡 **Optimal Binning** tối ưu hóa Information Value (IV) để phân biệt Good/Bad. Yêu cầu chọn cột target.")
+                
+                # Get potential target columns (binary)
+                target_col_for_binning = st.session_state.get('target_column', None)
+                if target_col_for_binning:
+                    st.success(f"📌 Target column: **{target_col_for_binning}**")
+                else:
+                    st.warning("⚠️ Chưa chọn target column. Vui lòng chọn ở phần Feature Engineering.")
+                
+                num_bins = st.slider(
+                    "Số bins tối đa:",
+                    min_value=2,
+                    max_value=15,
+                    value=5,
+                    key="num_bins_slider_frag",
+                    help="Optimal Binning sẽ tìm số bins tối ưu trong khoảng này"
+                )
+                
+                # Monotonic constraint option
+                monotonic = st.checkbox(
+                    "📈 Ép Monotonic (Bad rate tăng/giảm đều)",
+                    value=True,
+                    key="monotonic_binning_frag",
+                    help="Đảm bảo bad rate tăng hoặc giảm đều theo thứ tự bins - quan trọng cho Credit Scoring"
+                )
+                
+                custom_bins = ""
+            elif binning_method == "Custom Bins":
                 st.info("💡 Nhập các ngưỡng phân cách, VD: 0,18,30,60,100")
                 custom_bins = st.text_input(
                     "Ngưỡng (phân cách bằng dấu phẩy):",
@@ -1662,28 +1702,39 @@ def binning_fragment(data):
                     help="Số lượng nhóm muốn chia"
                 )
             
-            # Label options
-            include_labels = st.checkbox(
-                "Tạo nhãn cho các nhóm",
-                value=True,
-                key="include_bin_labels_frag",
-                help="Tự động tạo nhãn cho từng nhóm (VD: Low, Medium, High)"
-            )
-            
-            if include_labels:
-                label_type = st.radio(
-                    "Kiểu nhãn:",
-                    ["Tự động (Low/Medium/High)", "Số thứ tự (1,2,3...)", "Khoảng giá trị"],
-                    key="label_type_select_frag"
+            # Label options - hide for Optimal Binning (always outputs WoE codes)
+            if binning_method != "Optimal Binning (WoE/IV)":
+                include_labels = st.checkbox(
+                    "Tạo nhãn cho các nhóm",
+                    value=True,
+                    key="include_bin_labels_frag",
+                    help="Tự động tạo nhãn cho từng nhóm (VD: Low, Medium, High)"
                 )
+                
+                if include_labels:
+                    label_type = st.radio(
+                        "Kiểu nhãn:",
+                        ["Tự động (Low/Medium/High)", "Số thứ tự (1,2,3...)", "Khoảng giá trị"],
+                        key="label_type_select_frag"
+                    )
+                else:
+                    label_type = "Khoảng giá trị"
             else:
-                label_type = "Khoảng giá trị"
+                include_labels = False
+                label_type = "WoE"
             
-            # New column name
+            # New column name - use _woe suffix for Optimal Binning
+            if binning_method == "Optimal Binning (WoE/IV)":
+                default_col_name = f"{selected_bin_col}_woe"
+            else:
+                default_col_name = f"{selected_bin_col}_binned"
+            
+            # Use dynamic key so value updates when column or method changes
+            col_name_key = f"new_bin_col_{selected_bin_col}_{binning_method[:8]}"
             new_col_name = st.text_input(
                 "Tên cột mới:",
-                value=f"{selected_bin_col}_binned",
-                key="new_bin_col_name_frag"
+                value=default_col_name,
+                key=col_name_key
             )
             
             if st.button("🔄 Thực Hiện Binning", key="apply_binning_btn_frag", type="primary", width='stretch'):
@@ -1698,7 +1749,92 @@ def binning_fragment(data):
                         binned = None
                     else:
                         # Perform binning based on method
-                        if binning_method == "Equal Width (Khoảng đều)":
+                        if binning_method == "Optimal Binning (WoE/IV)":
+                            # Optimal binning requires target column
+                            if not target_col_for_binning:
+                                st.error("❌ Vui lòng chọn target column trước khi sử dụng Optimal Binning!")
+                                binned = None
+                            else:
+                                try:
+                                    from sklearn.tree import DecisionTreeClassifier
+                                    from sklearn import __version__ as sklearn_version
+                                    
+                                    # Prepare data for finding optimal splits
+                                    X_bin = bin_data.values.reshape(-1, 1)
+                                    y_bin = st.session_state.data[target_col_for_binning].values
+                                    
+                                    # Remove NaN
+                                    mask = ~(np.isnan(X_bin.flatten()) | pd.isna(y_bin))
+                                    X_clean = X_bin[mask]
+                                    y_clean = y_bin[mask]
+                                    
+                                    # Use Decision Tree to find optimal splits
+                                    # monotonic_cst available in sklearn >= 1.4
+                                    tree_params = {
+                                        'max_leaf_nodes': num_bins,
+                                        'min_samples_leaf': max(50, int(len(y_clean) * 0.05)),  # At least 5% per bin
+                                        'random_state': 42
+                                    }
+                                    
+                                    # Add monotonic constraint if enabled and sklearn supports it
+                                    if monotonic:
+                                        try:
+                                            # Check sklearn version for monotonic support
+                                            major, minor = map(int, sklearn_version.split('.')[:2])
+                                            if (major, minor) >= (1, 4):
+                                                tree_params['monotonic_cst'] = [1]  # 1 = increasing, -1 = decreasing
+                                        except:
+                                            pass
+                                    
+                                    tree = DecisionTreeClassifier(**tree_params)
+                                    tree.fit(X_clean, y_clean)
+                                    
+                                    # Get split points from tree
+                                    thresholds = tree.tree_.threshold
+                                    thresholds = thresholds[thresholds != -2]  # Remove leaf nodes
+                                    thresholds = sorted(thresholds)
+                                    
+                                    # Create bins with -inf and inf
+                                    bins = [-np.inf] + list(thresholds) + [np.inf]
+                                    
+                                    # Apply binning
+                                    binned = pd.cut(bin_data, bins=bins)
+                                    
+                                    # Calculate WoE and IV for display
+                                    woe_iv_info = []
+                                    total_good = (y_clean == 0).sum()
+                                    total_bad = (y_clean == 1).sum()
+                                    total_iv = 0
+                                    
+                                    for i, cat in enumerate(binned.cat.categories):
+                                        mask_bin = binned == cat
+                                        bin_good = ((st.session_state.data[target_col_for_binning] == 0) & mask_bin).sum()
+                                        bin_bad = ((st.session_state.data[target_col_for_binning] == 1) & mask_bin).sum()
+                                        
+                                        # Avoid division by zero
+                                        dist_good = max(bin_good / total_good, 0.0001) if total_good > 0 else 0.0001
+                                        dist_bad = max(bin_bad / total_bad, 0.0001) if total_bad > 0 else 0.0001
+                                        
+                                        woe = np.log(dist_good / dist_bad)
+                                        iv = (dist_good - dist_bad) * woe
+                                        total_iv += iv
+                                        
+                                        woe_iv_info.append({
+                                            'bin': i, 'range': str(cat), 
+                                            'good': bin_good, 'bad': bin_bad,
+                                            'woe': round(woe, 4), 'iv': round(iv, 4)
+                                        })
+                                    
+                                    # Store IV info for display
+                                    st.session_state._optimal_binning_iv = total_iv
+                                    st.session_state._optimal_binning_details = woe_iv_info
+                                    
+                                except Exception as e:
+                                    st.error(f"❌ Lỗi Optimal Binning: {str(e)}")
+                                    # Fallback to equal frequency
+                                    binned, bins = pd.qcut(bin_data, q=num_bins, retbins=True, duplicates='drop')
+                        
+                        elif binning_method == "Equal Width (Khoảng đều)":
                             binned, bins = pd.cut(bin_data, bins=num_bins, retbins=True)
                         elif binning_method == "Equal Frequency (Tần suất đều)":
                             binned, bins = pd.qcut(bin_data, q=num_bins, retbins=True, duplicates='drop')
@@ -1718,10 +1854,13 @@ def binning_fragment(data):
                                 binned = None
                     
                     if binned is not None:
-                        # Apply labels if needed
+                        # Get original category codes (0-indexed)
+                        original_codes = binned.cat.codes.copy()
+                        num_categories = len(binned.cat.categories)
+                        
+                        # Determine labels for display/reference
                         if include_labels:
                             if label_type == "Tự động (Low/Medium/High)":
-                                num_categories = len(binned.cat.categories)
                                 if num_categories <= 3:
                                     labels = ['Low', 'Medium', 'High'][:num_categories]
                                 elif num_categories == 4:
@@ -1730,20 +1869,53 @@ def binning_fragment(data):
                                     labels = ['Very Low', 'Low', 'Medium', 'High', 'Very High']
                                 else:
                                     labels = [f'Group_{i+1}' for i in range(num_categories)]
-                                binned = binned.cat.rename_categories(labels)
                             elif label_type == "Số thứ tự (1,2,3...)":
-                                # Convert to numeric codes, handling NaN properly
-                                binned_codes = binned.cat.codes.copy()
-                                binned_codes[binned_codes >= 0] = binned_codes[binned_codes >= 0] + 1
-                                binned = pd.Series(binned_codes, index=bin_data.index, dtype='Int64')
-                        
-                        # Add to dataframe - use proper assignment to avoid putmask error
-                        if isinstance(binned, pd.Categorical):
-                            # Convert categorical to string safely
-                            st.session_state.data.loc[:, new_col_name] = binned.astype(str)
+                                labels = [str(i+1) for i in range(num_categories)]
                         else:
-                            # For numeric series
-                            st.session_state.data.loc[:, new_col_name] = binned
+                            labels = [str(i) for i in range(num_categories)]
+                        
+                        # Always output numeric codes (0, 1, 2, ...) for ML training compatibility
+                        # Codes are 0-indexed, -1 for NaN
+                        binned_numeric = original_codes.copy()
+                        # Handle NaN: codes == -1 means NaN, keep as NaN
+                        binned_numeric = binned_numeric.astype(float)
+                        binned_numeric[binned_numeric == -1] = np.nan
+                        
+                        # Create the output series
+                        binned_output = pd.Series(binned_numeric, index=bin_data.index)
+                        
+                        # Add to main dataframe
+                        st.session_state.data.loc[:, new_col_name] = binned_output
+                        
+                        # Sync to train/valid/test data if they exist
+                        # Apply same binning directly using the bins found
+                        def apply_binning_codes(df, col_name, bins_edges):
+                            """Apply binning to a column and return numeric codes"""
+                            if col_name not in df.columns:
+                                return None
+                            binned_series = pd.cut(df[col_name], bins=bins_edges)
+                            codes = binned_series.cat.codes.astype(float)
+                            codes[codes == -1] = np.nan
+                            return codes
+                        
+                        if st.session_state.get('train_data') is not None and selected_bin_col in st.session_state.train_data.columns:
+                            st.session_state.train_data[new_col_name] = apply_binning_codes(
+                                st.session_state.train_data, selected_bin_col, bins
+                            )
+                        
+                        if st.session_state.get('valid_data') is not None and selected_bin_col in st.session_state.valid_data.columns:
+                            st.session_state.valid_data[new_col_name] = apply_binning_codes(
+                                st.session_state.valid_data, selected_bin_col, bins
+                            )
+                        
+                        if st.session_state.get('test_data') is not None and selected_bin_col in st.session_state.test_data.columns:
+                            st.session_state.test_data[new_col_name] = apply_binning_codes(
+                                st.session_state.test_data, selected_bin_col, bins
+                            )
+                        
+                        # Clear cached feature importance results to force recalculation
+                        if 'feature_importance_results' in st.session_state:
+                            del st.session_state.feature_importance_results
                         
                         # Save to binning config
                         if 'binning_config' not in st.session_state:
@@ -1769,6 +1941,46 @@ def binning_fragment(data):
         
         with col_bin2:
             st.markdown("##### 📊 Phân Tích & Trực Quan")
+            
+            # Show Optimal Binning IV results if available
+            if st.session_state.get('_optimal_binning_iv') is not None:
+                total_iv = st.session_state._optimal_binning_iv
+                iv_details = st.session_state.get('_optimal_binning_details', [])
+                
+                # IV interpretation
+                if total_iv < 0.02:
+                    iv_interpret = "❌ Không dự đoán được"
+                    iv_color = "#f44336"
+                elif total_iv < 0.1:
+                    iv_interpret = "⚠️ Yếu"
+                    iv_color = "#ff9800"
+                elif total_iv < 0.3:
+                    iv_interpret = "✅ Trung bình"
+                    iv_color = "#4caf50"
+                elif total_iv < 0.5:
+                    iv_interpret = "🎯 Mạnh"
+                    iv_color = "#2196f3"
+                else:
+                    iv_interpret = "🔥 Rất mạnh (kiểm tra overfitting)"
+                    iv_color = "#9c27b0"
+                
+                st.markdown(f"""
+                <div style="background: linear-gradient(90deg, {iv_color}22, transparent); padding: 1rem; border-radius: 8px; border-left: 4px solid {iv_color}; margin-bottom: 1rem;">
+                    <h4 style="margin: 0; color: {iv_color};">📈 Information Value: {total_iv:.4f}</h4>
+                    <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">{iv_interpret}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Show WoE table
+                if iv_details:
+                    st.markdown("**Chi tiết WoE theo bin:**")
+                    iv_df = pd.DataFrame(iv_details)
+                    iv_df.columns = ['Bin', 'Khoảng', 'Good', 'Bad', 'WoE', 'IV']
+                    st.dataframe(iv_df.style.background_gradient(subset=['IV'], cmap='RdYlGn'), width='stretch', hide_index=True)
+                
+                # Clear after display
+                st.session_state._optimal_binning_iv = None
+                st.session_state._optimal_binning_details = None
             
             # Show statistics
             if selected_bin_col in current_data.columns:
@@ -2422,7 +2634,7 @@ def render():
     
     with col_status3:
         if total_configs > 0:
-            if st.button("� Hoàn Về Ban Đầu", key="clear_all_configs", help="Xóa tất cả cấu hình và hoàn về dữ liệu gốc", type="primary"):
+            if st.button("Hoàn Về Ban Đầu", key="clear_all_configs", help="Xóa tất cả cấu hình và hoàn về dữ liệu gốc", type="primary"):
                 # Restore original data
                 st.session_state.data = st.session_state.data_original_backup.copy()
                 # Clear all configs
@@ -3338,7 +3550,6 @@ def render():
                 <li>Giảm ảnh hưởng của outliers</li>
                 <li>Tạo quan hệ phi tuyến</li>
                 <li>Dễ giải thích và phân tích</li>
-                <li>Phù hợp cho decision tree models</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
@@ -3458,12 +3669,16 @@ def render():
                         with st.expander("Chi tiết lỗi"):
                             st.code(traceback.format_exc())
                 
-                # Show info
+                # Show info - use main data for accurate column count
                 if st.session_state.train_data is not None:
                     st.markdown("---")
                     st.markdown("##### 📊 Thông Tin Dữ Liệu")
                     st.metric("Số mẫu train", len(st.session_state.train_data))
-                    st.metric("Số features", len(train_cols) - 1)
+                    # Use main data for feature count to reflect latest changes (binning, etc.)
+                    main_data = st.session_state.data
+                    target_col = st.session_state.get('target_column')
+                    n_features = len(main_data.columns) - 1 if target_col else len(main_data.columns)
+                    st.metric("Số features", n_features)
             
             with col2:
                 st.markdown("#### 📊 Biểu Đồ Feature Importance")
