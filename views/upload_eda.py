@@ -977,7 +977,7 @@ def render():
                 
                 # Generate AI analysis
                 if analysis_button:
-                    with st.spinner("🤖 Đang phân tích dữ liệu..." if is_llm_configured else "📊 Đang tạo báo cáo..."):
+                    with st.spinner("📋 Đang phân tích dữ liệu..." if is_llm_configured else "📊 Đang tạo báo cáo..."):
                         try:
                             # Get API key and provider from config
                             api_key = LLMConfig.get_api_key() if is_llm_configured else None
@@ -1542,7 +1542,7 @@ QUAN TRỌNG:
                 
                 # Generate AI analysis
                 if analysis_button:
-                    with st.spinner("🤖 Đang phân tích dữ liệu..." if is_llm_configured else "📊 Đang tạo báo cáo..."):
+                    with st.spinner("📋 Đang phân tích dữ liệu..." if is_llm_configured else "📊 Đang tạo báo cáo..."):
                         try:
                             # Get API key and provider from config
                             api_key = LLMConfig.get_api_key() if is_llm_configured else None
