@@ -6,13 +6,17 @@ Handles training of various machine learning models
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, StackingClassifier
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix
 import xgboost as xgb
 import lightgbm as lgb
 import catboost as cb
 
-def train_model(X_train, y_train, X_test, y_test, model_type, params=None):
+def train_model(X_train, y_train, X_test, y_test, model_type, params=None,
+                X_valid=None, y_valid=None, early_stopping_rounds=None):
     """
     Train a machine learning model based on the specified type and parameters.
     
@@ -23,25 +27,45 @@ def train_model(X_train, y_train, X_test, y_test, model_type, params=None):
     y_train : pd.Series
         Training target
     X_test : pd.DataFrame
-        Test features
+        Test features (holdout set - NEVER used for training or early stopping)
     y_test : pd.Series
         Test target
     model_type : str
         Type of model to train
     params : dict
         Model parameters
+    X_valid : pd.DataFrame, optional
+        Validation features (used for early stopping and monitoring, separate from test)
+    y_valid : pd.Series, optional
+        Validation target
+    early_stopping_rounds : int, optional
+        Number of rounds for early stopping (boosting models only)
         
     Returns:
     --------
     model : object
         Trained model object
     metrics : dict
-        Dictionary of evaluation metrics
+        Dictionary containing train_metrics, valid_metrics, test_metrics
     """
     if params is None:
         params = {}
 
     model = None
+    early_stopped_iteration = None
+    
+    # Helper function to calculate metrics
+    def calculate_metrics(model, X, y, dataset_name=""):
+        y_pred = model.predict(X)
+        y_pred_proba = model.predict_proba(X)[:, 1] if hasattr(model, "predict_proba") else None
+        return {
+            'accuracy': accuracy_score(y, y_pred),
+            'precision': precision_score(y, y_pred, zero_division=0),
+            'recall': recall_score(y, y_pred, zero_division=0),
+            'f1': f1_score(y, y_pred, zero_division=0),
+            'auc': roc_auc_score(y, y_pred_proba) if y_pred_proba is not None else 0.5,
+            'confusion_matrix': confusion_matrix(y, y_pred).tolist()
+        }
     
     try:
         if model_type == "Logistic Regression":
@@ -50,6 +74,7 @@ def train_model(X_train, y_train, X_test, y_test, model_type, params=None):
                 max_iter=params.get('max_iter', 200),
                 random_state=params.get('random_state', 42)
             )
+            model.fit(X_train, y_train)
             
         elif model_type == "Random Forest":
             model = RandomForestClassifier(
@@ -58,6 +83,7 @@ def train_model(X_train, y_train, X_test, y_test, model_type, params=None):
                 min_samples_split=params.get('min_samples_split', 2),
                 random_state=params.get('random_state', 42)
             )
+            model.fit(X_train, y_train)
             
         elif model_type == "Gradient Boosting":
             model = GradientBoostingClassifier(
@@ -67,6 +93,7 @@ def train_model(X_train, y_train, X_test, y_test, model_type, params=None):
                 subsample=params.get('subsample', 1.0),
                 random_state=params.get('random_state', 42)
             )
+            model.fit(X_train, y_train)
             
         elif model_type == "XGBoost":
             model = xgb.XGBClassifier(
@@ -79,6 +106,23 @@ def train_model(X_train, y_train, X_test, y_test, model_type, params=None):
                 eval_metric='logloss'
             )
             
+            # Early stopping with validation set (NOT test set to avoid data leakage)
+            if X_valid is not None and y_valid is not None and early_stopping_rounds:
+                model.fit(
+                    X_train, y_train,
+                    eval_set=[(X_valid, y_valid)],
+                    verbose=False
+                )
+                model.set_params(early_stopping_rounds=early_stopping_rounds)
+                model.fit(
+                    X_train, y_train,
+                    eval_set=[(X_valid, y_valid)],
+                    verbose=False
+                )
+                early_stopped_iteration = model.best_iteration if hasattr(model, 'best_iteration') else None
+            else:
+                model.fit(X_train, y_train)
+            
         elif model_type == "LightGBM":
             model = lgb.LGBMClassifier(
                 n_estimators=params.get('n_estimators', 100),
@@ -88,6 +132,18 @@ def train_model(X_train, y_train, X_test, y_test, model_type, params=None):
                 random_state=params.get('random_state', 42),
                 verbose=-1
             )
+            
+            # Early stopping with validation set
+            if X_valid is not None and y_valid is not None and early_stopping_rounds:
+                callbacks = [lgb.early_stopping(stopping_rounds=early_stopping_rounds, verbose=False)]
+                model.fit(
+                    X_train, y_train,
+                    eval_set=[(X_valid, y_valid)],
+                    callbacks=callbacks
+                )
+                early_stopped_iteration = model.best_iteration_ if hasattr(model, 'best_iteration_') else None
+            else:
+                model.fit(X_train, y_train)
             
         elif model_type == "CatBoost":
             model = cb.CatBoostClassifier(
@@ -99,16 +155,161 @@ def train_model(X_train, y_train, X_test, y_test, model_type, params=None):
                 verbose=0,
                 allow_writing_files=False
             )
+            
+            # Early stopping with validation set
+            if X_valid is not None and y_valid is not None and early_stopping_rounds:
+                model.fit(
+                    X_train, y_train,
+                    eval_set=(X_valid, y_valid),
+                    early_stopping_rounds=early_stopping_rounds
+                )
+                early_stopped_iteration = model.best_iteration_ if hasattr(model, 'best_iteration_') else None
+            else:
+                model.fit(X_train, y_train)
         
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
+        
+        # Calculate metrics on all datasets (no data leakage - each set is separate)
+        train_metrics = calculate_metrics(model, X_train, y_train, "train")
+        test_metrics = calculate_metrics(model, X_test, y_test, "test")
+        
+        # Validation metrics only if validation set provided
+        valid_metrics = None
+        if X_valid is not None and y_valid is not None:
+            valid_metrics = calculate_metrics(model, X_valid, y_valid, "validation")
+        
+        # Combine all metrics
+        metrics = {
+            'accuracy': test_metrics['accuracy'],  # Primary metrics still from test set
+            'precision': test_metrics['precision'],
+            'recall': test_metrics['recall'],
+            'f1': test_metrics['f1'],
+            'auc': test_metrics['auc'],
+            'confusion_matrix': test_metrics['confusion_matrix'],
+            # Detailed breakdown for comparison
+            'train_metrics': train_metrics,
+            'valid_metrics': valid_metrics,
+            'test_metrics': test_metrics,
+            'early_stopped_iteration': early_stopped_iteration
+        }
+        
+        return model, metrics
+        
+    except Exception as e:
+        raise Exception(f"Error training {model_type}: {str(e)}")
+
+
+def train_stacking_model(X_train, y_train, X_test, y_test, 
+                         base_models: list, meta_model: str, params=None):
+    """
+    Train Stacking Classifier with selected base models and meta model.
+    Following the approach from "Credit-Risk-Scoring: A Stacking Generalization Approach"
+    
+    Parameters:
+    -----------
+    X_train : pd.DataFrame
+        Training features
+    y_train : pd.Series
+        Training target
+    X_test : pd.DataFrame
+        Test features
+    y_test : pd.Series
+        Test target
+    base_models : list
+        List of base model names. Options: ['LR', 'DT', 'SVM', 'KNN', 'RF', 'GB']
+    meta_model : str
+        Name of meta model (final estimator). Options: 'Random Forest', 'Logistic Regression', 'XGBoost'
+    params : dict
+        Additional parameters (e.g., random_state)
+        
+    Returns:
+    --------
+    model : StackingClassifier
+        Trained stacking model
+    metrics : dict
+        Dictionary of evaluation metrics
+    """
+    if params is None:
+        params = {}
+    
+    random_state = params.get('random_state', 42)
+    
+    
+    # Get custom params for models if available
+    base_model_params_config = params.get('base_model_params', {})
+    meta_model_params_config = params.get('meta_model_params', {})
+    
+    # Define base model classes
+    base_model_classes = {
+        'LR': LogisticRegression,
+        'DT': DecisionTreeClassifier,
+        'SVM': SVC,
+        'KNN': KNeighborsClassifier,
+        'RF': RandomForestClassifier,
+        'GB': GradientBoostingClassifier
+    }
+    
+    # helper to merge default and custom params
+    def get_model_instance(model_key, model_class, custom_params, default_params):
+        # Start with defaults
+        final_params = default_params.copy()
+        # Update with custom params if any
+        if model_key in custom_params:
+            final_params.update(custom_params[model_key])
+        return model_class(**final_params)
+
+    # Build estimators list from selected base models
+    estimators = []
+    for model_key in base_models:
+        if model_key in base_model_classes:
+            model_cls = base_model_classes[model_key]
             
-        # Train the model
-        model.fit(X_train, y_train)
+            # Define default params
+            defaults = {'random_state': random_state} if 'random_state' in model_cls().get_params() else {}
+            if model_key == 'LR': defaults.update({'max_iter': 200})
+            if model_key == 'DT': defaults.update({'max_depth': 10})
+            if model_key == 'SVM': defaults.update({'kernel': 'rbf', 'probability': True})
+            if model_key == 'KNN': defaults = {'n_neighbors': 5} # KNN doesn't have random_state
+            if model_key == 'RF': defaults.update({'n_estimators': 100})
+            if model_key == 'GB': defaults.update({'n_estimators': 100})
+            
+            model_instance = get_model_instance(model_key, model_cls, base_model_params_config, defaults)
+            estimators.append((model_key, model_instance))
+    
+    if len(estimators) < 2:
+        raise ValueError("Stacking requires at least 2 base models")
+    
+    # Define meta model (final estimator)
+    if meta_model == "Random Forest":
+        meta_defaults = {'n_estimators': 100, 'warm_start': True, 'random_state': random_state}
+        final_estimator = RandomForestClassifier(**{**meta_defaults, **meta_model_params_config})
+    elif meta_model == "Logistic Regression":
+        meta_defaults = {'max_iter': 200, 'random_state': random_state}
+        final_estimator = LogisticRegression(**{**meta_defaults, **meta_model_params_config})
+    elif meta_model == "XGBoost":
+        meta_defaults = {'n_estimators': 100, 'use_label_encoder': False, 'eval_metric': 'logloss', 'random_state': random_state}
+        final_estimator = xgb.XGBClassifier(**{**meta_defaults, **meta_model_params_config})
+    else:
+        # Default to Random Forest
+        final_estimator = RandomForestClassifier(n_estimators=100, random_state=random_state)
+    
+    try:
+        # Create Stacking Classifier
+        # stack_method='predict' as per paper (not predict_proba)
+        stacking_model = StackingClassifier(
+            estimators=estimators,
+            final_estimator=final_estimator,
+            stack_method='predict',
+            cv=5  # 5-fold CV for generating meta-features
+        )
+        
+        # Train the stacking model
+        stacking_model.fit(X_train, y_train)
         
         # Predictions
-        y_pred = model.predict(X_test)
-        y_pred_proba = model.predict_proba(X_test)[:, 1] if hasattr(model, "predict_proba") else None
+        y_pred = stacking_model.predict(X_test)
+        y_pred_proba = stacking_model.predict_proba(X_test)[:, 1] if hasattr(stacking_model, "predict_proba") else None
         
         # Calculate metrics
         metrics = {
@@ -117,13 +318,252 @@ def train_model(X_train, y_train, X_test, y_test, model_type, params=None):
             'recall': recall_score(y_test, y_pred, zero_division=0),
             'f1': f1_score(y_test, y_pred, zero_division=0),
             'auc': roc_auc_score(y_test, y_pred_proba) if y_pred_proba is not None else 0.5,
-            'confusion_matrix': confusion_matrix(y_test, y_pred).tolist()
+            'confusion_matrix': confusion_matrix(y_test, y_pred).tolist(),
+            'base_models': base_models,
+            'meta_model': meta_model
         }
         
-        return model, metrics
+        return stacking_model, metrics
         
     except Exception as e:
-        raise Exception(f"Error training {model_type}: {str(e)}")
+        raise Exception(f"Error training Stacking model: {str(e)}")
+
+
+def tune_stacking_with_oof(X_train, y_train, X_test, y_test,
+                           base_models_config: dict,
+                           meta_model: str,
+                           tuning_method: str = "Grid Search",
+                           n_folds: int = 5,
+                           params=None):
+    """
+    Tune Stacking với OOF (Out-of-Fold) để tránh data leakage.
+    
+    Parameters:
+    -----------
+    X_train, y_train : Training data
+    X_test, y_test : Test data
+    base_models_config : dict
+        Config cho từng base model với param ranges, ví dụ:
+        {
+            'LR': {'C': [0.1, 1.0, 10.0], 'max_iter': [200]},
+            'DT': {'max_depth': [5, 10, 15]},
+        }
+    meta_model : str
+        Name of meta model
+    tuning_method : str
+        'Grid Search', 'Random Search', or 'Default' (no tuning)
+    n_folds : int
+        Number of folds for CV
+        
+    Returns:
+    --------
+    stacking_model, metrics, tuning_info
+    """
+    from sklearn.model_selection import StratifiedKFold, GridSearchCV, RandomizedSearchCV
+    import warnings
+    warnings.filterwarnings('ignore')
+    
+    if params is None:
+        params = {}
+    
+    random_state = params.get('random_state', 42)
+    
+    # Base model class mapping
+    base_model_classes = {
+        'LR': LogisticRegression,
+        'DT': DecisionTreeClassifier,
+        'SVM': SVC,
+        'KNN': KNeighborsClassifier,
+        'RF': RandomForestClassifier,
+        'GB': GradientBoostingClassifier
+    }
+    
+    # Default params for each model
+    default_params = {
+        'LR': {'max_iter': 200, 'random_state': random_state},
+        'DT': {'random_state': random_state},
+        'SVM': {'probability': True, 'random_state': random_state},
+        'KNN': {},
+        'RF': {'random_state': random_state},
+        'GB': {'random_state': random_state}
+    }
+    
+    tuning_results = {}
+    best_params_per_model = {}
+    
+    try:
+        # Step 1: Tune each base model using CV on training data
+        kfold = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=random_state)
+        
+        for model_key, param_grid in base_models_config.items():
+            if model_key not in base_model_classes:
+                continue
+            
+            model_class = base_model_classes[model_key]
+            base_params = default_params.get(model_key, {})
+            
+            if tuning_method == "Default" or not param_grid:
+                # No tuning, use default or provided fixed params
+                if isinstance(param_grid, dict) and not any(isinstance(v, list) for v in param_grid.values()):
+                    # Fixed params provided
+                    best_params_per_model[model_key] = {**base_params, **param_grid}
+                else:
+                    best_params_per_model[model_key] = base_params
+                tuning_results[model_key] = {'best_params': best_params_per_model[model_key], 'best_score': None}
+                
+            elif tuning_method == "Grid Search":
+                model = model_class(**base_params)
+                grid_search = GridSearchCV(
+                    model, param_grid, cv=kfold, scoring='roc_auc', n_jobs=-1
+                )
+                grid_search.fit(X_train, y_train)
+                best_params_per_model[model_key] = {**base_params, **grid_search.best_params_}
+                tuning_results[model_key] = {
+                    'best_params': grid_search.best_params_,
+                    'best_score': grid_search.best_score_
+                }
+                
+            elif tuning_method == "Random Search":
+                model = model_class(**base_params)
+                random_search = RandomizedSearchCV(
+                    model, param_grid, cv=kfold, scoring='roc_auc', 
+                    n_iter=min(10, np.prod([len(v) if isinstance(v, list) else 1 for v in param_grid.values()])),
+                    n_jobs=-1, random_state=random_state
+                )
+                random_search.fit(X_train, y_train)
+                best_params_per_model[model_key] = {**base_params, **random_search.best_params_}
+                tuning_results[model_key] = {
+                    'best_params': random_search.best_params_,
+                    'best_score': random_search.best_score_
+                }
+        
+        # Step 2: Generate OOF predictions using tuned base models
+        n_samples = len(X_train)
+        n_models = len(base_models_config)
+        oof_predictions = np.zeros((n_samples, n_models))
+        oof_probabilities = np.zeros((n_samples, n_models))
+        
+        model_order = list(base_models_config.keys())
+        
+        for fold_idx, (train_idx, val_idx) in enumerate(kfold.split(X_train, y_train)):
+            X_tr = X_train.iloc[train_idx] if hasattr(X_train, 'iloc') else X_train[train_idx]
+            X_val = X_train.iloc[val_idx] if hasattr(X_train, 'iloc') else X_train[val_idx]
+            y_tr = y_train.iloc[train_idx] if hasattr(y_train, 'iloc') else y_train[train_idx]
+            
+            for model_idx, model_key in enumerate(model_order):
+                if model_key not in base_model_classes:
+                    continue
+                    
+                model_class = base_model_classes[model_key]
+                model_params = best_params_per_model.get(model_key, {})
+                model = model_class(**model_params)
+                model.fit(X_tr, y_tr)
+                
+                oof_predictions[val_idx, model_idx] = model.predict(X_val)
+                if hasattr(model, 'predict_proba'):
+                    oof_probabilities[val_idx, model_idx] = model.predict_proba(X_val)[:, 1]
+        
+        # Step 3: Tune meta model using OOF predictions as features
+        meta_model_params = params.get('meta_model_params', {})
+        best_meta_params = {}
+        
+        # Define base meta model class and params
+        meta_base_params = {'random_state': random_state}
+        
+        if meta_model == "Random Forest":
+            meta_model_class = RandomForestClassifier
+            meta_base_params['warm_start'] = True
+        elif meta_model == "Logistic Regression":
+            meta_model_class = LogisticRegression
+            meta_base_params['max_iter'] = 200
+        elif meta_model == "XGBoost":
+            meta_model_class = xgb.XGBClassifier
+            meta_base_params['use_label_encoder'] = False
+            meta_base_params['eval_metric'] = 'logloss'
+        else:
+            meta_model_class = RandomForestClassifier
+        
+        # Tune meta model on OOF predictions
+        if meta_model_params and tuning_method != "Default":
+            meta_model_instance = meta_model_class(**meta_base_params)
+            
+            if tuning_method == "Grid Search":
+                meta_grid_search = GridSearchCV(
+                    meta_model_instance, meta_model_params, 
+                    cv=kfold, scoring='roc_auc', n_jobs=-1
+                )
+                meta_grid_search.fit(oof_predictions, y_train)
+                best_meta_params = {**meta_base_params, **meta_grid_search.best_params_}
+                tuning_results['META_MODEL'] = {
+                    'best_params': meta_grid_search.best_params_,
+                    'best_score': meta_grid_search.best_score_
+                }
+            elif tuning_method == "Random Search":
+                meta_random_search = RandomizedSearchCV(
+                    meta_model_instance, meta_model_params, 
+                    cv=kfold, scoring='roc_auc',
+                    n_iter=min(10, np.prod([len(v) if isinstance(v, list) else 1 for v in meta_model_params.values()])),
+                    n_jobs=-1, random_state=random_state
+                )
+                meta_random_search.fit(oof_predictions, y_train)
+                best_meta_params = {**meta_base_params, **meta_random_search.best_params_}
+                tuning_results['META_MODEL'] = {
+                    'best_params': meta_random_search.best_params_,
+                    'best_score': meta_random_search.best_score_
+                }
+        else:
+            best_meta_params = meta_base_params
+            tuning_results['META_MODEL'] = {'best_params': meta_base_params, 'best_score': None}
+        
+        # Step 4: Build final stacking model with tuned params
+        estimators = []
+        for model_key in model_order:
+            if model_key in base_model_classes:
+                model_class = base_model_classes[model_key]
+                model_params = best_params_per_model.get(model_key, {})
+                estimators.append((model_key, model_class(**model_params)))
+        
+        # Create final estimator with tuned params
+        final_estimator = meta_model_class(**best_meta_params)
+        
+        # Create Stacking Classifier
+        stacking_model = StackingClassifier(
+            estimators=estimators,
+            final_estimator=final_estimator,
+            stack_method='predict',
+            cv=n_folds
+        )
+        
+        # Train stacking model
+        stacking_model.fit(X_train, y_train)
+        
+        # Predictions on test set
+        y_pred = stacking_model.predict(X_test)
+        y_pred_proba = stacking_model.predict_proba(X_test)[:, 1] if hasattr(stacking_model, "predict_proba") else None
+        
+        # Calculate metrics
+        metrics = {
+            'accuracy': accuracy_score(y_test, y_pred),
+            'precision': precision_score(y_test, y_pred, zero_division=0),
+            'recall': recall_score(y_test, y_pred, zero_division=0),
+            'f1': f1_score(y_test, y_pred, zero_division=0),
+            'auc': roc_auc_score(y_test, y_pred_proba) if y_pred_proba is not None else 0.5,
+            'confusion_matrix': confusion_matrix(y_test, y_pred).tolist(),
+            'base_models': model_order,
+            'meta_model': meta_model
+        }
+        
+        tuning_info = {
+            'tuning_method': tuning_method,
+            'n_folds': n_folds,
+            'best_params_per_model': best_params_per_model,
+            'tuning_results': tuning_results
+        }
+        
+        return stacking_model, metrics, tuning_info
+        
+    except Exception as e:
+        raise Exception(f"Error tuning Stacking model: {str(e)}")
 
 
 def cross_validate_model(X, y, model_type, params=None, cv_folds=5):
