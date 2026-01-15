@@ -676,6 +676,7 @@ def render():
                         <li><strong>Random Forest</strong>: Mạnh mẽ, chống overfitting tốt</li>
                         <li><strong>XGBoost/LightGBM</strong>: Hiệu suất cao, thường cho kết quả tốt nhất</li>
                         <li><strong>CatBoost</strong>: Tốt với biến phân loại, ít cần tiền xử lý</li>
+                        <li><strong>Stacking Ensemble</strong>: Kết hợp nhiều mô hình base với meta-learner, thường đạt hiệu suất cao nhất</li>
                     </ul>
                 </div>
                 """, unsafe_allow_html=True)

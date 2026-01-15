@@ -50,14 +50,25 @@ git clone <repository-url>
 cd demo
 ```
 
-2. Cài đặt dependencies:
+2. Tạo môi trường ảo với Conda (khuyến nghị):
+```bash
+# Tạo môi trường mới với Python 3.11+
+conda create -n credit-scoring python=3.11
+
+# Kích hoạt môi trường
+conda activate credit-scoring
+```
+
+> **💡 Lưu ý**: Khuyến khích sử dụng Conda thay vì venv để quản lý môi trường Python, giúp tránh các xung đột dependencies và dễ dàng quản lý phiên bản Python.
+
+3. Cài đặt dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
 3. (Optional) Tạo file `.env` cho API keys:
 ```bash
-OPENAI_API_KEY=your_api_key_here
+GOOGLE_API_KEY=your_api_key_here
 ```
 
 ## 💻 Chạy Ứng Dụng
