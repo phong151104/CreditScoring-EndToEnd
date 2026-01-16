@@ -8,6 +8,7 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 from utils.session_state import init_session_state
+from utils.permissions import check_and_show_view_only, has_permission
 
 def render():
     """Render trang huấn luyện mô hình"""
@@ -15,6 +16,9 @@ def render():
     
     st.markdown("## 🧠 Huấn Luyện Mô Hình")
     st.markdown("Chọn và cấu hình mô hình Machine Learning để dự đoán điểm tín dụng.")
+    
+    # Check view-only mode
+    is_view_only = check_and_show_view_only("🧠 Model Training")
     
     # Check prerequisites
     if st.session_state.data is None:

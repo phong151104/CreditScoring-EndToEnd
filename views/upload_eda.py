@@ -11,6 +11,7 @@ from scipy import stats
 from utils.ui_components import show_llm_analysis
 from utils.session_state import init_session_state, clear_data_related_state
 from backend.llm_integration import analyze_eda_with_llm, get_eda_summary, LLMConfig
+from utils.permissions import check_and_show_view_only
 
 
 
@@ -28,15 +29,22 @@ def render():
     st.markdown("## 📤 Tải Dữ Liệu & Phân Tích Khám Phá Dữ Liệu (EDA)")
     st.markdown("Tải lên file CSV chứa dữ liệu khách hàng và khám phá các thông tin quan trọng.")
     
+    # Check view-only mode
+    is_view_only = check_and_show_view_only("📊 Data Upload & Analysis")
+    
     st.markdown("---")
     
-    # File uploader
-    uploaded_file = st.file_uploader(
-        "Chọn file dữ liệu CSV",
-        type=['csv'],
-        help="Tải lên file CSV chứa dữ liệu khách hàng với các đặc trưng và nhãn",
-        key="csv_uploader"
-    )
+    # File uploader - show message for view-only users
+    if is_view_only:
+        st.info("📁 **Chế độ xem** - Bạn không thể tải lên file mới.")
+        uploaded_file = None
+    else:
+        uploaded_file = st.file_uploader(
+            "Chọn file dữ liệu CSV",
+            type=['csv'],
+            help="Tải lên file CSV chứa dữ liệu khách hàng với các đặc trưng và nhãn",
+            key="csv_uploader"
+        )
     
     if uploaded_file is not None:
         try:
@@ -1726,6 +1734,51 @@ QUAN TRỌNG:
                 else:
                     st.markdown("---")
                     st.info("👆 Nhấn nút phía trên để bắt đầu phân tích!")
+            
+            return
+        
+        # Check if we have existing data in session (for view-only users)
+        if st.session_state.get('data') is not None:
+            data = st.session_state.data
+            st.success(f"📊 Đang xem dữ liệu đã tải ({len(data)} dòng, {len(data.columns)} cột)")
+            
+            # Show EDA tabs for existing data
+            if 'current_eda_tab' not in st.session_state:
+                st.session_state.current_eda_tab = "📋 Dữ Liệu Mẫu"
+            
+            tabs = ["📋 Dữ Liệu Mẫu", "📊 Thống Kê Mô Tả", "📈 Phân Phối Dữ Liệu"]
+            current_tab_index = 0
+            if st.session_state.current_eda_tab in tabs:
+                current_tab_index = tabs.index(st.session_state.current_eda_tab)
+            
+            selected_tab = st.radio(
+                "Chọn mục:",
+                tabs,
+                horizontal=True,
+                key="eda_tab_selector_view_only",
+                index=current_tab_index
+            )
+            st.session_state.current_eda_tab = selected_tab
+            
+            st.markdown("---")
+            
+            # Simple Sample Data display for view-only
+            if selected_tab == "📋 Dữ Liệu Mẫu":
+                st.markdown("### 📋 Dữ Liệu Mẫu")
+                st.info(f"📊 Hiển thị toàn bộ {len(data):,} dòng dữ liệu")
+                st.dataframe(data, width='stretch', height=400)
+            
+            elif selected_tab == "📊 Thống Kê Mô Tả":
+                st.markdown("### 📊 Thống Kê Mô Tả")
+                st.dataframe(data.describe(), width='stretch')
+            
+            elif selected_tab == "📈 Phân Phối Dữ Liệu":
+                st.markdown("### 📈 Phân Phối Dữ Liệu")
+                numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+                if numeric_cols:
+                    selected_col = st.selectbox("Chọn cột để xem phân phối:", numeric_cols)
+                    fig = px.histogram(data, x=selected_col, marginal="box", template="plotly_dark")
+                    st.plotly_chart(fig, use_container_width=True)
             
             return
         

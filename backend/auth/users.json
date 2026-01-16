@@ -1,0 +1,17 @@
+{
+    "admin": {
+        "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+        "role": "admin",
+        "display_name": "Quản trị viên"
+    },
+    "validator": {
+        "password_hash": "6a37663e28d607e8ec6a72df0e30c27ee64d9aa5825add97aad3a3261292bcec",
+        "role": "validator",
+        "display_name": "Kiểm định viên"
+    },
+    "scorer": {
+        "password_hash": "4b3ec041703d49da5132696c9f4be398ca50ee3ec318829bd765142f8d1bf6a2",
+        "role": "scorer",
+        "display_name": "Nhân viên chấm điểm"
+    }
+}

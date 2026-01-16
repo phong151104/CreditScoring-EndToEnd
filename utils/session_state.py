@@ -87,6 +87,19 @@ def init_session_state():
     
     if 'eda_summary' not in st.session_state:
         st.session_state.eda_summary = None
+    
+    # Authentication state
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+    
+    if 'user' not in st.session_state:
+        st.session_state.user = None
+    
+    if 'user_role' not in st.session_state:
+        st.session_state.user_role = None
+    
+    if 'login_time' not in st.session_state:
+        st.session_state.login_time = None
 
 def clear_session_state():
     """Xóa toàn bộ session state"""

@@ -59,15 +59,22 @@ def remove_columns_fragment(data):
         cols_df = pd.DataFrame(cols_info)
         st.dataframe(cols_df, width='stretch', hide_index=True, height=300)
         
+        # Check view-only mode
+        is_view_only = st.session_state.get('fe_view_only', False)
+        
         # Select columns to remove
         cols_to_remove = st.multiselect(
             "Chọn cột để loại bỏ:",
             all_cols,
             key="id_cols_to_remove_frag",
-            help="Chọn các cột định danh cần loại bỏ khỏi dataset"
+            help="Chọn các cột định danh cần loại bỏ khỏi dataset",
+            disabled=is_view_only
         )
         
-        if st.button("🗑️ Loại Bỏ Các Cột Đã Chọn", key="remove_id_cols_frag", width='stretch', type="primary"):
+        if is_view_only:
+            st.warning("🔒 Bạn không có quyền thay đổi dữ liệu.")
+        
+        if st.button("🗑️ Loại Bỏ Các Cột Đã Chọn", key="remove_id_cols_frag", width='stretch', type="primary", disabled=is_view_only):
             if cols_to_remove:
                 # Initialize removed_columns_config if not exists
                 if 'removed_columns_config' not in st.session_state:
@@ -2532,10 +2539,17 @@ def feature_selection_fragment(data):
     with col2:
         # Manual selection
         if selection_mode == "Chọn thủ công":
+            # Filter default values to only include valid options
+            default_features = []
+            if st.session_state.selected_features:
+                default_features = [f for f in st.session_state.selected_features if f in available_features]
+            if not default_features:
+                default_features = available_features[:min(10, len(available_features))]
+            
             selected_features = st.multiselect(
                 "Chọn các đặc trưng:",
                 available_features,
-                default=st.session_state.selected_features if st.session_state.selected_features else available_features[:min(10, len(available_features))],
+                default=default_features,
                 key="manual_features_frag"
             )
             
@@ -2587,8 +2601,21 @@ def render():
     """Render trang xử lý và chọn biến"""
     init_session_state()
     
+    # Import permissions
+    from utils.permissions import check_and_show_view_only
+    
     st.markdown("## ⚙️ Xử Lý & Chọn Biến")
     st.markdown("Tiền xử lý dữ liệu và lựa chọn các đặc trưng quan trọng cho mô hình.")
+    
+    # Check view-only mode
+    is_view_only = check_and_show_view_only("⚙️ Feature Engineering")
+    
+    # Store in session state for fragment access
+    st.session_state.fe_view_only = is_view_only
+    
+    # If view-only, show info and display read-only config summary
+    if is_view_only:
+        st.info("📋 **Chế độ xem** - Bạn có thể xem cấu hình xử lý dữ liệu nhưng không thể chỉnh sửa.")
     
     # Check if data exists
     if st.session_state.data is None:
