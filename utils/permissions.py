@@ -21,9 +21,23 @@ ROLE_PERMISSIONS = {
         'prediction',
         'admin_settings',
         'user_management',
-        'model_approval',
         'export_data',
         'configure_thresholds'
+    ],
+    'model_builder': [
+        'upload_data',
+        'view_eda',
+        'analyze_ai',
+        'feature_engineering',
+        'model_training',
+        'model_tuning',
+        'view_shap_global',
+        'view_shap_local',
+        'init_shap',
+        'prediction',
+        'export_data',
+        'configure_thresholds'
+        # Note: NO 'admin_settings' and 'user_management'
     ],
     'validator': [
         'view_eda',
@@ -31,13 +45,11 @@ ROLE_PERMISSIONS = {
         'view_training_results',
         'view_shap_global',
         'view_shap_local',
-        'model_approval',
         'add_comments',
         'export_reports'
     ],
     'scorer': [
         'prediction',
-        'view_shap_local',
         'export_prediction_report'
     ]
 }
@@ -51,8 +63,16 @@ PAGE_ACCESS = {
         '🧠 Model Training',
         '💡 Model Explanation',
         '🎯 Prediction & Advisory',
-        '✅ Model Approval',
         '⚡ Admin Settings'
+    ],
+    'model_builder': [
+        '🏠 Dashboard',
+        '📊 Data Upload & Analysis',
+        '⚙️ Feature Engineering',
+        '🧠 Model Training',
+        '💡 Model Explanation',
+        '🎯 Prediction & Advisory'
+        # Note: NO '⚡ Admin Settings'
     ],
     'validator': [
         '🏠 Dashboard',
@@ -60,12 +80,10 @@ PAGE_ACCESS = {
         '⚙️ Feature Engineering',
         '🧠 Model Training',
         '💡 Model Explanation',
-        '✅ Model Approval'
+        '🎯 Prediction & Advisory'
     ],
     'scorer': [
-        '🏠 Dashboard',
-        '🎯 Prediction & Advisory',
-        '💡 Model Explanation'
+        '🎯 Prediction & Advisory'
     ]
 }
 
@@ -75,11 +93,13 @@ VIEW_ONLY_PAGES = {
         '📊 Data Upload & Analysis',
         '⚙️ Feature Engineering',
         '🧠 Model Training',
-        '💡 Model Explanation'
+        '💡 Model Explanation',
+        '🎯 Prediction & Advisory'
     ],
     'scorer': [
         '💡 Model Explanation'
     ]
+    # Note: model_builder has FULL access, not view-only
 }
 
 

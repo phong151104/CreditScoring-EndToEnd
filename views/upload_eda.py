@@ -1194,10 +1194,14 @@ QUAN TRỌNG:
             with col_info2:
                 st.info("💾 Dữ liệu đã lưu trong session")
             with col_info3:
-                if st.button("🗑️ Xóa & Upload Mới", width='stretch', key="clear_and_upload"):
-                    clear_data_related_state()
-                    st.success("✅ Đã xóa! Upload file mới bên dưới.")
-                    st.rerun()
+                # Only show delete button for non-view-only users
+                if not is_view_only:
+                    if st.button("🗑️ Xóa & Upload Mới", width='stretch', key="clear_and_upload"):
+                        clear_data_related_state()
+                        st.success("✅ Đã xóa! Upload file mới bên dưới.")
+                        st.rerun()
+                else:
+                    st.caption("👁️ Chế độ xem")
             
             st.markdown("---")
             

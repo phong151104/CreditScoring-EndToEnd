@@ -658,7 +658,7 @@ def render():
                 
                 # Train button - check flag immediately to prevent double render
                 if not st.session_state.get('_training_in_progress', False):
-                    if st.button("🚀 Huấn Luyện Mô Hình", type="primary", key="train_model_btn", width='stretch'):
+                    if st.button("🚀 Huấn Luyện Mô Hình", type="primary", key="train_model_btn", width='stretch', disabled=is_view_only):
                         # Lưu params vào session state và set flag
                         st.session_state._training_model_type = model_type
                         st.session_state._training_params = params
@@ -723,7 +723,7 @@ def render():
                 
                 with st.expander("Cross-Validation"):
                     cv_folds = st.slider("Số folds:", 3, 10, 5, key="cv_folds")
-                    if st.button("🔄 Chạy Cross-Validation", key="run_cv"):
+                    if st.button("🔄 Chạy Cross-Validation", key="run_cv", disabled=is_view_only):
                         try:
                             with st.spinner(f"Đang chạy Cross-Validation với {cv_folds} folds..."):
                                 # Prepare data
@@ -960,7 +960,7 @@ def render():
                                     'subsample': meta_subsample if meta_subsample else [1.0]
                                 }
                         
-                        if st.button("🔍 Tìm Tham Số Tốt Nhất (OOF)", key="stacking_tune_btn"):
+                        if st.button("🔍 Tìm Tham Số Tốt Nhất (OOF)", key="stacking_tune_btn", disabled=is_view_only):
                             try:
                                 with st.spinner("Đang chạy OOF Hyperparameter Tuning... (có thể mất vài phút)"):
                                     target_col = st.session_state.target_column
@@ -1097,7 +1097,7 @@ def render():
                             n_trials = st.slider("Số trials:", 20, 200, 50, key="n_trials")
                             st.caption("💡 Optuna sử dụng TPE (Tree-structured Parzen Estimator) để tối ưu thông minh")
                     
-                    if current_model_type != "Stacking Ensemble" and st.button("🔍 Tìm Tham Số Tốt Nhất", key="tune_params"):
+                    if current_model_type != "Stacking Ensemble" and st.button("🔍 Tìm Tham Số Tốt Nhất", key="tune_params", disabled=is_view_only):
                         try:
                             with st.spinner(f"Đang chạy {tuning_method}... (có thể mất vài phút)"):
                                 # Prepare data
@@ -1456,8 +1456,29 @@ def render():
             col1, col2, col3 = st.columns([1, 1, 1])
             
             with col2:
-                if st.button("💾 Lưu Mô Hình", width='stretch'):
-                    st.success("✅ Đã lưu mô hình!")
+                # Export model as pickle file for download
+                if st.session_state.model is not None:
+                    import pickle
+                    import io
+                    
+                    # Serialize model to bytes
+                    model_bytes = io.BytesIO()
+                    pickle.dump(st.session_state.model, model_bytes)
+                    model_bytes.seek(0)
+                    
+                    # Get model name for filename
+                    model_name = st.session_state.get('selected_model_name', 'model')
+                    model_name = model_name.replace(' ', '_').replace('(', '').replace(')', '')
+                    
+                    st.download_button(
+                        label="💾 Lưu Mô Hình",
+                        data=model_bytes,
+                        file_name=f"{model_name}.pkl",
+                        mime="application/octet-stream",
+                        use_container_width=True,
+                        disabled=is_view_only
+                    )
+                    st.info("📁 Đã lưu mô hình!")
     
     # Tab 3: Model Comparison
     with tab3:
@@ -1597,7 +1618,7 @@ def render():
             st.success(f"🏆 **Mô hình tốt nhất hiện tại**: {best_model} (chạy lúc {best_time}) với AUC = {best_auc:.3f}")
             
             # Clear history button
-            if st.button("🗑️ Xóa Lịch Sử", type="secondary"):
+            if st.button("🗑️ Xóa Lịch Sử", type="secondary", disabled=is_view_only):
                 st.session_state.model_history = []
                 st.rerun()
 

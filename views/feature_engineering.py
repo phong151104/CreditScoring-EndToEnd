@@ -71,9 +71,6 @@ def remove_columns_fragment(data):
             disabled=is_view_only
         )
         
-        if is_view_only:
-            st.warning("🔒 Bạn không có quyền thay đổi dữ liệu.")
-        
         if st.button("🗑️ Loại Bỏ Các Cột Đã Chọn", key="remove_id_cols_frag", width='stretch', type="primary", disabled=is_view_only):
             if cols_to_remove:
                 # Initialize removed_columns_config if not exists
@@ -182,7 +179,8 @@ def _handle_negative_validation(data, selected_validate_cols, validation_type):
     if 'validation_config' not in st.session_state:
         st.session_state.validation_config = {}
     
-    if st.button("✅ Áp Dụng Cho Tất Cả Cột", key="apply_negative_frag", width='stretch', type="primary"):
+    is_view_only = st.session_state.get('fe_view_only', False)
+    if st.button("✅ Áp Dụng Cho Tất Cả Cột", key="apply_negative_frag", width='stretch', type="primary", disabled=is_view_only):
         # Check if train_data exists
         train_data = st.session_state.get('train_data')
         if train_data is None:
@@ -259,7 +257,8 @@ def _handle_min_threshold_validation(data, selected_validate_cols, validation_ty
         key="min_action_frag"
     )
     
-    if st.button("✅ Áp Dụng Cho Tất Cả Cột", key="apply_min_frag", width='stretch', type="primary"):
+    is_view_only = st.session_state.get('fe_view_only', False)
+    if st.button("✅ Áp Dụng Cho Tất Cả Cột", key="apply_min_frag", width='stretch', type="primary", disabled=is_view_only):
         if total_invalid > 0:
             if 'column_backups' not in st.session_state:
                 st.session_state.column_backups = {}
@@ -307,7 +306,8 @@ def _handle_max_threshold_validation(data, selected_validate_cols, validation_ty
         key="max_action_frag"
     )
     
-    if st.button("✅ Áp Dụng Cho Tất Cả Cột", key="apply_max_frag", width='stretch', type="primary"):
+    is_view_only = st.session_state.get('fe_view_only', False)
+    if st.button("✅ Áp Dụng Cho Tất Cả Cột", key="apply_max_frag", width='stretch', type="primary", disabled=is_view_only):
         if total_invalid > 0:
             if 'column_backups' not in st.session_state:
                 st.session_state.column_backups = {}
@@ -341,6 +341,9 @@ def _handle_max_threshold_validation(data, selected_validate_cols, validation_ty
 @st.fragment
 def outliers_transform_fragment(data):
     """Fragment để xử lý outliers và biến đổi phân phối - không gây rerun toàn trang"""
+    
+    # Check view-only mode
+    is_view_only = st.session_state.get('fe_view_only', False)
     
     # Hiển thị thông báo thành công nếu có
     if st.session_state.get('_outlier_success'):
@@ -439,7 +442,7 @@ def outliers_transform_fragment(data):
             )
             
             if selected_outlier_cols and outlier_method != "Keep All":
-                if st.button("✅ Áp Dụng Xử Lý Outliers", key="apply_outlier_frag", width='stretch', type="primary"):
+                if st.button("✅ Áp Dụng Xử Lý Outliers", key="apply_outlier_frag", width='stretch', type="primary", disabled=is_view_only):
                     # Initialize preprocessing pipeline if not exists
                     if 'preprocessing_pipeline' not in st.session_state or st.session_state.preprocessing_pipeline is None:
                         from backend.data_processing import PreprocessingPipeline
@@ -637,7 +640,7 @@ def outliers_transform_fragment(data):
                     can_apply = False
                     st.warning("⚠️ Reciprocal không xử lý được giá trị 0")
                 
-                if st.button("✅ Áp Dụng Biến Đổi", key="apply_transform_frag", width='stretch', type="primary", disabled=not can_apply):
+                if st.button("✅ Áp Dụng Biến Đổi", key="apply_transform_frag", width='stretch', type="primary", disabled=not can_apply or is_view_only):
                     # Check if train_data exists
                     train_data = st.session_state.get('train_data')
                     if train_data is None:
@@ -780,6 +783,9 @@ def outliers_transform_fragment(data):
 def missing_values_fragment(data, missing_data):
     """Fragment để xử lý giá trị thiếu - không gây rerun toàn trang"""
     
+    # Check view-only mode
+    is_view_only = st.session_state.get('fe_view_only', False)
+    
     # Hiển thị thông báo thành công nếu có
     if st.session_state.get('_missing_success'):
         st.success(st.session_state._missing_success)
@@ -892,7 +898,7 @@ def missing_values_fragment(data, missing_data):
                 st.session_state.column_backups = {}
             
             # Process button
-            if st.button("✅ Xử Lý Tất Cả Cột Đã Chọn", key="add_config_all_missing_frag", width='stretch', type="primary"):
+            if st.button("✅ Xử Lý Tất Cả Cột Đã Chọn", key="add_config_all_missing_frag", width='stretch', type="primary", disabled=is_view_only):
                 processed_count = 0
                 total_filled = 0
                 
@@ -1025,6 +1031,9 @@ def missing_values_fragment(data, missing_data):
 def split_data_fragment(data):
     """Fragment để chia tập Train/Valid/Test - không gây rerun toàn trang"""
     
+    # Check view-only mode
+    is_view_only = st.session_state.get('fe_view_only', False)
+    
     col_split1, col_split2 = st.columns([1, 1])
     
     with col_split1:
@@ -1040,7 +1049,7 @@ def split_data_fragment(data):
             with target_col1:
                 st.success(f"🎯 Cột target: `{target_col}`")
             with target_col2:
-                if st.button("↩️ Bỏ chọn", key="undo_target_selection_frag", help="Bỏ chọn cột target", width='stretch'):
+                if st.button("↩️ Bỏ chọn", key="undo_target_selection_frag", help="Bỏ chọn cột target", width='stretch', disabled=is_view_only):
                     st.session_state.target_column = None
                     st.session_state._split_success = "✅ Đã bỏ chọn target"
                     st.rerun(scope="fragment")
@@ -1050,7 +1059,7 @@ def split_data_fragment(data):
                 options=current_data.columns.tolist(),
                 key="temp_target_select_frag"
             )
-            if st.button("💾 Lưu Target", key="save_temp_target_frag", width='stretch'):
+            if st.button("💾 Lưu Target", key="save_temp_target_frag", width='stretch', disabled=is_view_only):
                 st.session_state.target_column = target_col
                 st.session_state._split_success = f"✅ Đã lưu target: `{target_col}`"
                 st.rerun(scope="fragment")
@@ -1114,7 +1123,7 @@ def split_data_fragment(data):
         )
         
         # Split button
-        if st.button("✂️ Chia Tập Dữ Liệu", type="primary", width='stretch', key="split_data_btn_frag"):
+        if st.button("✂️ Chia Tập Dữ Liệu", type="primary", width='stretch', key="split_data_btn_frag", disabled=is_view_only):
             if test_ratio >= 0 and target_col and target_col in current_data.columns:
                 try:
                     from sklearn.model_selection import train_test_split
@@ -1275,7 +1284,8 @@ def _handle_range_validation(data, selected_validate_cols, validation_type):
         key="range_action_frag"
     )
     
-    if st.button("✅ Áp Dụng Cho Tất Cả Cột", key="apply_range_frag", width='stretch', type="primary"):
+    is_view_only = st.session_state.get('fe_view_only', False)
+    if st.button("✅ Áp Dụng Cho Tất Cả Cột", key="apply_range_frag", width='stretch', type="primary", disabled=is_view_only):
         if total_invalid > 0:
             if 'column_backups' not in st.session_state:
                 st.session_state.column_backups = {}
@@ -1311,6 +1321,9 @@ def _handle_range_validation(data, selected_validate_cols, validation_type):
 @st.fragment
 def encoding_fragment(data):
     """Fragment để mã hóa biến phân loại - không gây rerun toàn trang"""
+    
+    # Check view-only mode
+    is_view_only = st.session_state.get('fe_view_only', False)
     
     # Hiển thị thông báo thành công nếu có
     if st.session_state.get('_encoding_success'):
@@ -1454,7 +1467,7 @@ def encoding_fragment(data):
             
             # Add and apply immediately
             if remaining_categorical_cols:
-                if st.button("➕ Thêm Cấu Hình", key="add_enc_config_frag", width='stretch', type="primary"):
+                if st.button("➕ Thêm Cấu Hình", key="add_enc_config_frag", width='stretch', type="primary", disabled=is_view_only):
                     try:
                         # Initialize preprocessing pipeline if not exists
                         if 'preprocessing_pipeline' not in st.session_state or st.session_state.preprocessing_pipeline is None:
@@ -1630,6 +1643,9 @@ def encoding_fragment(data):
 def binning_fragment(data):
     """Fragment để phân nhóm (binning) biến liên tục - không gây rerun toàn trang"""
     
+    # Check view-only mode
+    is_view_only = st.session_state.get('fe_view_only', False)
+    
     # Hiển thị thông báo thành công nếu có
     if st.session_state.get('_binning_success'):
         info = st.session_state._binning_success
@@ -1744,7 +1760,7 @@ def binning_fragment(data):
                 key=col_name_key
             )
             
-            if st.button("🔄 Thực Hiện Binning", key="apply_binning_btn_frag", type="primary", width='stretch'):
+            if st.button("🔄 Thực Hiện Binning", key="apply_binning_btn_frag", type="primary", width='stretch', disabled=is_view_only):
                 try:
                     # Get data and remove NaN values for binning
                     bin_data = st.session_state.data[selected_bin_col].copy()
@@ -2090,6 +2106,9 @@ def binning_fragment(data):
 def scaling_fragment(data):
     """Fragment để chuẩn hóa/scaling biến số - không gây rerun toàn trang"""
     
+    # Check view-only mode
+    is_view_only = st.session_state.get('fe_view_only', False)
+    
     # Hiển thị thông báo thành công nếu có
     if st.session_state.get('_scaling_success'):
         info = st.session_state._scaling_success
@@ -2156,7 +2175,7 @@ def scaling_fragment(data):
                 help="Nếu check: tạo cột mới với suffix '_scaled'\nNếu không: ghi đè lên cột gốc"
             )
             
-            if st.button("🔄 Thực Hiện Scaling", key="apply_scaling_btn_frag", type="primary", width='stretch'):
+            if st.button("🔄 Thực Hiện Scaling", key="apply_scaling_btn_frag", type="primary", width='stretch', disabled=is_view_only):
                 if selected_scale_cols:
                     try:
                         # Initialize preprocessing pipeline if not exists
@@ -2334,6 +2353,9 @@ def scaling_fragment(data):
 def balancing_fragment(data):
     """Fragment để xử lý cân bằng dữ liệu - không gây rerun toàn trang"""
     
+    # Check view-only mode
+    is_view_only = st.session_state.get('fe_view_only', False)
+    
     # Hiển thị thông báo thành công nếu có
     if st.session_state.get('_balance_success'):
         st.success(st.session_state._balance_success)
@@ -2375,7 +2397,7 @@ def balancing_fragment(data):
             help="auto: cân bằng về class đa số\nminority: chỉ oversample class thiểu số\nnot majority: oversample tất cả trừ class đa số"
         )
         
-        if st.button("✅ Cân Bằng Dữ Liệu", key="apply_balance_frag", width='stretch', type="primary"):
+        if st.button("✅ Cân Bằng Dữ Liệu", key="apply_balance_frag", width='stretch', type="primary", disabled=is_view_only):
             if target_col_balance and target_col_balance in st.session_state.data.columns:
                 try:
                     with st.spinner(f"Đang cân bằng dữ liệu bằng {balance_method}..."):
@@ -2521,6 +2543,9 @@ def balancing_fragment(data):
 def feature_selection_fragment(data):
     """Fragment để chọn đặc trưng cho mô hình - không gây rerun toàn trang"""
     
+    # Check view-only mode
+    is_view_only = st.session_state.get('fe_view_only', False)
+    
     # Hiển thị thông báo thành công nếu có
     if st.session_state.get('_feature_selection_success'):
         st.success(st.session_state._feature_selection_success)
@@ -2577,7 +2602,7 @@ def feature_selection_fragment(data):
                 key="importance_threshold_frag"
             )
             
-            if st.button("🔄 Chọn Tự Động", key="auto_select_frag"):
+            if st.button("🔄 Chọn Tự Động", key="auto_select_frag", disabled=is_view_only):
                 # Mock auto selection
                 num_selected = np.random.randint(5, min(15, len(available_features)))
                 selected = np.random.choice(available_features, num_selected, replace=False).tolist()
@@ -2602,7 +2627,7 @@ def feature_selection_fragment(data):
                 key="manual_features_frag"
             )
             
-            if st.button("💾 Lưu Lựa Chọn", key="save_selection_frag", type="primary"):
+            if st.button("💾 Lưu Lựa Chọn", key="save_selection_frag", type="primary", disabled=is_view_only):
                 st.session_state.selected_features = selected_features
                 st.session_state._feature_selection_success = f"✅ Đã lưu {len(selected_features)} đặc trưng!"
                 st.rerun(scope="fragment")
@@ -3179,20 +3204,9 @@ def render():
             
             # Action buttons
             st.markdown("---")
-            action_col1, action_col2, action_col3 = st.columns(3)
+            action_col1, action_col2 = st.columns(2)
             
             with action_col1:
-                # Scroll to top button using JavaScript
-                st.markdown("""
-                <a href="#" onclick="window.parent.document.querySelector('section.main').scrollTo(0, 0); return false;" 
-                   style="display: inline-block; padding: 0.5rem 1rem; background-color: #262730; color: white; 
-                          text-decoration: none; border-radius: 0.5rem; text-align: center; width: 100%;
-                          border: 1px solid #4a4a5a;">
-                    ⬆️ Lên Đầu Trang
-                </a>
-                """, unsafe_allow_html=True)
-            
-            with action_col2:
                 # Export configuration as JSON
                 if st.button("📥 Xuất Cấu Hình", key="export_config", width='stretch'):
                     import json
@@ -3212,7 +3226,7 @@ def render():
                         key="download_config_json"
                     )
             
-            with action_col3:
+            with action_col2:
                 # Clear all pending configs
                 pending_missing = len([c for c in st.session_state.get('missing_config', {}).items() if not c[1].get('applied')])
                 pending_encoding = len([c for c in st.session_state.get('encoding_config', {}).items() if not c[1].get('applied')])
@@ -3344,8 +3358,13 @@ def render():
 <li><strong>Interpolation</strong>: Cho dữ liệu liên tục</li>
 </ul>"""
             
-            # Add floating button with pure HTML/CSS
-            st.markdown(f"""
+            # Add floating button with pure HTML/CSS - only for non-view-only users
+            # Check view-only mode from session state
+            fe_view_only = st.session_state.get('fe_view_only', False)
+            
+            # Only show floating button if not view-only
+            if not fe_view_only:
+                st.markdown(f"""
 <style>
 .floating-btn-container {{
     position: fixed;
@@ -3714,7 +3733,7 @@ def render():
                     help="auto: Tự động phát hiện dựa trên số lượng giá trị unique của target"
                 )
                 
-                if st.button("🔄 Tính Feature Importance", key="calc_importance", type="primary"):
+                if st.button("🔄 Tính Feature Importance", key="calc_importance", type="primary", disabled=is_view_only):
                     try:
                         with st.spinner(f"Đang tính feature importance bằng {importance_method}..."):
                             from backend.models.feature_importance import calculate_feature_importance
@@ -3908,7 +3927,7 @@ def render():
                     key="woe_n_bins"
                 )
                 
-                if st.button("🔄 Tính WOE & IV", key="calc_woe", type="primary"):
+                if st.button("🔄 Tính WOE & IV", key="calc_woe", type="primary", disabled=is_view_only):
                     if len(selected_features) == 0:
                         st.error("⚠️ Vui lòng chọn ít nhất một biến")
                     else:
@@ -4053,7 +4072,7 @@ def render():
                         help="Các cặp biến có |correlation| > ngưỡng sẽ được đánh dấu"
                     )
                 
-                if st.button("🔄 Phân Tích Đa Cộng Tuyến", key="calc_multicollinearity", type="primary"):
+                if st.button("🔄 Phân Tích Đa Cộng Tuyến", key="calc_multicollinearity", type="primary", disabled=is_view_only):
                     if len(selected_features) < 2:
                         st.error("⚠️ Vui lòng chọn ít nhất 2 biến")
                     else:

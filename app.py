@@ -58,7 +58,7 @@ st.markdown("""
 try:
     load_custom_css()
 except Exception as e:
-    print(f"✗ CSS error: {e}", file=sys.stderr)
+    print(f"[X] CSS error: {e}", file=sys.stderr)
 
 # ============================================
 # AUTHENTICATION CHECK
@@ -81,7 +81,7 @@ current_role = get_current_role()
 try:
     render_header()
 except Exception as e:
-    print(f"✗ Header error: {e}", file=sys.stderr)
+    print(f"[X] Header error: {e}", file=sys.stderr)
     st.markdown("# CREDIT SCORING SYSTEM")
     st.markdown("### Advanced Risk Assessment & Prediction Platform")
     st.markdown("---")
@@ -229,9 +229,6 @@ try:
     elif page == "🎯 Prediction & Advisory":
         from views import prediction
         prediction.render()
-    elif page == "✅ Model Approval":
-        from views import model_approval
-        model_approval.render()
     elif page == "⚡ Admin Settings":
         from views import admin_settings
         admin_settings.render()

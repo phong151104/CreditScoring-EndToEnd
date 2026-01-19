@@ -46,6 +46,30 @@ def render():
         .role-admin { background: #065f46; color: #10b981; }
         .role-validator { background: #1e3a5f; color: #3b82f6; }
         .role-scorer { background: #713f12; color: #f59e0b; }
+        
+        /* Custom Button Style for Login Form */
+        div[data-testid="stForm"] .stButton button {
+            background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%) !important;
+            border: none !important;
+            color: white !important;
+            font-weight: 600 !important;
+            border-radius: 8px !important;
+            padding: 0.5rem 1rem !important;
+            transition: all 0.3s ease !important;
+        }
+        div[data-testid="stForm"] .stButton button:hover {
+            background: linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%) !important;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3) !important;
+            transform: translateY(-1px) !important;
+        }
+        div[data-testid="stForm"] .stButton button:active {
+            transform: translateY(0) !important;
+        }
+        
+        /* Adjust password visibility toggle position */
+        div[data-testid="stInputRightElement"] {
+            right: 2px !important;
+        }
     </style>
     """, unsafe_allow_html=True)
     
@@ -75,13 +99,7 @@ def render():
                 key="login_password"
             )
             
-            col_btn1, col_btn2 = st.columns(2)
-            
-            with col_btn1:
-                submit = st.form_submit_button("🔐 Đăng nhập", type="primary", width='stretch')
-            
-            with col_btn2:
-                forgot = st.form_submit_button("❓ Quên mật khẩu", width='stretch')
+            submit = st.form_submit_button("🔐 Đăng nhập", width='stretch')
         
         # Handle login
         if submit:
@@ -101,9 +119,7 @@ def render():
                 else:
                     st.error("❌ Sai tên đăng nhập hoặc mật khẩu!")
         
-        # Handle forgot password (placeholder)
-        if forgot:
-            st.info("📧 Tính năng khôi phục mật khẩu đang được phát triển. Vui lòng liên hệ quản trị viên.")
+
         
         # Role information
         st.markdown("---")
@@ -113,9 +129,14 @@ def render():
             **Hệ thống có 3 vai trò:**
             
             <span class="role-badge role-admin">👨‍💼 Admin</span>
-            **Quản trị & Xây dựng mô hình**
+            **Quản trị viên**
             - Full quyền truy cập mọi chức năng
-            - Upload data, train model, cấu hình hệ thống
+            - Quản lý người dùng, cấu hình hệ thống
+            
+            <span class="role-badge role-admin" style="background:#8e44ad;">👷 Builder</span>
+            **Xây dựng mô hình**
+            - Upload data, EDA, Train model, Tuning
+            - Không có quyền quản lý users
             
             <span class="role-badge role-validator">👨‍🔬 Validator</span>
             **Kiểm định & Đánh giá**
@@ -134,6 +155,7 @@ def render():
             | Username | Password | Role |
             |----------|----------|------|
             | `admin` | `admin123` | Admin |
+            | `builder` | `builder123` | Model Builder |
             | `validator` | `validator123` | Validator |
             | `scorer` | `scorer123` | Scorer |
             """)

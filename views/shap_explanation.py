@@ -14,6 +14,10 @@ def render():
     """Render trang giải thích SHAP"""
     init_session_state()
     
+    # Check view-only mode
+    from utils.permissions import check_and_show_view_only
+    is_view_only = check_and_show_view_only("💡 Model Explanation")
+    
     st.markdown("## 🔍 Giải Thích Mô Hình Với SHAP")
     st.markdown("Hiểu rõ cách mô hình đưa ra quyết định thông qua SHAP (SHapley Additive exPlanations).")
     
@@ -52,7 +56,7 @@ def render():
             # Sử dụng placeholder để tránh nút bị nhân đôi khi đang xử lý
             button_placeholder = st.empty()
             
-            if button_placeholder.button("🔄 Khởi Tạo SHAP Explainer", key="init_shap_btn", type="primary", width='stretch'):
+            if button_placeholder.button("🔄 Khởi Tạo SHAP Explainer", key="init_shap_btn", type="primary", width='stretch', disabled=is_view_only):
                 # Xóa nút và thay bằng spinner
                 button_placeholder.empty()
                 
@@ -556,7 +560,7 @@ def render():
             st.markdown("<br>", unsafe_allow_html=True)
             
             # Recalculate button
-            if st.button("🔄 Tính Lại SHAP", width='stretch'):
+            if st.button("🔄 Tính Lại SHAP", width='stretch', disabled=is_view_only):
                 st.session_state.shap_explainer_obj = None
                 st.session_state.shap_values_computed = None
                 st.session_state.explainer = None

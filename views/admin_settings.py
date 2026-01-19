@@ -14,27 +14,10 @@ def render():
     init_session_state()
     
     st.markdown("## ⚡ Cài đặt Hệ thống")
-    st.markdown("Quản lý người dùng, cấu hình ngưỡng quyết định và các thiết lập hệ thống.")
+    st.markdown("Quản lý người dùng và phân quyền hệ thống.")
     
-    # Tabs
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "👥 Quản lý Users",
-        "📊 Ngưỡng Quyết định",
-        "🔢 Công thức Credit Score",
-        "📥 Export/Import"
-    ])
-    
-    with tab1:
-        _render_user_management()
-    
-    with tab2:
-        _render_threshold_settings()
-    
-    with tab3:
-        _render_score_formula_settings()
-    
-    with tab4:
-        _render_export_import()
+    # Render User Management directly
+    _render_user_management()
 
 
 def _render_user_management():

@@ -10,11 +10,12 @@ from typing import Optional, Dict, List
 from pathlib import Path
 
 # Role definitions
-ROLES = ['admin', 'validator', 'scorer']
+ROLES = ['admin', 'model_builder', 'validator', 'scorer']
 ROLE_NAMES = {
-    'admin': 'Quản trị & Xây dựng mô hình',
-    'validator': 'Kiểm định & Đánh giá', 
-    'scorer': 'Người dùng chấm điểm'
+    'admin': 'Quản trị viên',
+    'model_builder': 'Xây dựng mô hình',
+    'validator': 'Kiểm định viên', 
+    'scorer': 'Người chấm điểm'
 }
 
 @dataclass
@@ -81,11 +82,41 @@ def verify_password(password: str, password_hash: str) -> bool:
     return hash_password(password) == password_hash
 
 
+def _sanitize_input(text: str) -> str:
+    """
+    Sanitize input to remove invisible characters that may be added by 
+    Vietnamese input methods like Unikey.
+    """
+    import unicodedata
+    if not text:
+        return text
+    # Strip whitespace
+    text = text.strip()
+    # Remove zero-width characters and other invisible Unicode
+    invisible_chars = [
+        '\u200b',  # Zero-width space
+        '\u200c',  # Zero-width non-joiner
+        '\u200d',  # Zero-width joiner
+        '\ufeff',  # BOM / Zero-width no-break space
+        '\u2060',  # Word joiner
+        '\u00ad',  # Soft hyphen
+    ]
+    for char in invisible_chars:
+        text = text.replace(char, '')
+    # Normalize Unicode (NFC form)
+    text = unicodedata.normalize('NFC', text)
+    return text
+
+
 def authenticate(username: str, password: str) -> Optional[User]:
     """
     Authenticate a user with username and password.
     Returns User object if successful, None otherwise.
     """
+    # Sanitize inputs to handle Unikey/Vietnamese IME issues
+    username = _sanitize_input(username)
+    password = _sanitize_input(password)
+    
     users = _load_users()
     
     if username not in users:
@@ -191,7 +222,7 @@ def init_default_users():
             }
         }
         _save_users(default_users)
-        print("✓ Đã tạo users mặc định: admin, validator, scorer")
+        print("[OK] Default users created: admin, validator, scorer")
 
 
 # Initialize default users on module import
