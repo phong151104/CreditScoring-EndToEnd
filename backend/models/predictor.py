@@ -1,11 +1,47 @@
 """
-Prediction Module
-Handles model inference for new data
+=============================================================================
+PREDICTION MODULE - DỰ ĐOÁN ĐIỂM TÍN DỤNG
+=============================================================================
+Mô tả:
+    Module xử lý dự đoán điểm tín dụng cho khách hàng mới, tính toán
+    Credit Score theo chuẩn Basel II/III và đưa ra khuyến nghị.
+
+Các chức năng chính:
+    1. predict_single(): Dự đoán cho 1 khách hàng
+    2. predict_batch(): Dự đoán hàng loạt
+    3. get_feature_contributions(): Lấy đóng góp của từng feature
+    4. generate_recommendations(): Tạo khuyến nghị cải thiện
+
+CÔNG THỨC CREDIT SCORE (Log-Odds Scaling - Industry Standard):
+    Score = Offset + Factor × ln(Odds / Base_Odds)
+    
+    Với:
+    - PDO (Points to Double Odds) = 30 (chuẩn: 20-30)
+    - Base Score = 600 (ở odds = 19:1, tức PD = 5%)
+    - Factor = PDO / ln(2) ≈ 43.29
+    
+PHÂN LOẠI RỦI RO (5 cấp độ theo chuẩn ngành):
+    - Very Low:  PD < 2%      (Rất thấp)
+    - Low:       2% ≤ PD < 5% (Thấp)
+    - Medium:    5% ≤ PD < 10% (Trung bình)
+    - High:      10% ≤ PD < 20% (Cao)
+    - Very High: PD ≥ 20%     (Rất cao)
+
+QUYẾT ĐỊNH PHÊ DUYỆT:
+    - Approved: PD < 5% VÀ Score ≥ 650
+    - Conditional: PD < 10% HOẶC 550 ≤ Score < 650
+    - Rejected: Còn lại
+=============================================================================
 """
 
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, List, Tuple, Optional
+
+
+# =============================================================================
+# PHẦN 1: DỰ ĐOÁN ĐƠN LẺ (SINGLE PREDICTION)
+# =============================================================================
 
 
 def predict_single(model, input_data: Dict[str, Any], feature_names: List[str], 

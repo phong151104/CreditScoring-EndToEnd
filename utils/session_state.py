@@ -1,8 +1,54 @@
 """
-Session State Management - Quản lý trạng thái phiên làm việc
+=============================================================================
+SESSION STATE MANAGEMENT - QUẢN LÝ TRẠNG THÁI PHIÊN LÀM VIỆC
+=============================================================================
+Mô tả:
+    Module quản lý Streamlit session state cho toàn bộ ứng dụng.
+    Lưu trữ và duy trì trạng thái giữa các lần render của Streamlit.
+
+Các biến session state chính:
+    DATA STATES:
+        - data: DataFrame gốc sau khi upload
+        - processed_data: DataFrame đã xử lý
+        - selected_features: Danh sách features đã chọn
+        - target_column: Cột mục tiêu (label)
+        
+    MODEL STATES:
+        - model: Model đã train
+        - model_type: Loại model (XGBoost, LightGBM,...)
+        - model_metrics: Metrics của model
+        - trained_models: Lịch sử các models đã train
+        
+    SHAP STATES:
+        - shap_explainer_obj: SHAP explainer object
+        - shap_values_computed: SHAP values đã tính
+        - shap_feature_importance: Feature importance từ SHAP
+        
+    CONFIG STATES:
+        - missing_config: Cấu hình xử lý missing values
+        - encoding_config: Cấu hình encoding
+        - scaling_config: Cấu hình scaling
+        - binning_config: Cấu hình binning
+        
+    AUTH STATES:
+        - authenticated: Trạng thái đăng nhập
+        - user: Thông tin user hiện tại
+        - user_role: Vai trò của user
+
+Các hàm chính:
+    - init_session_state(): Khởi tạo tất cả session states
+    - clear_session_state(): Xóa toàn bộ states
+    - clear_data_related_state(): Xóa states liên quan data khi upload mới
+    - get_session_info(): Lấy thông tin tóm tắt về session
+=============================================================================
 """
 
 import streamlit as st
+
+
+# =============================================================================
+# KHỞI TẠO SESSION STATE
+# =============================================================================
 
 def init_session_state():
     """Khởi tạo session state"""

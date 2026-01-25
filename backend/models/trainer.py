@@ -1,6 +1,33 @@
 """
-Model Training Module
-Handles training of various machine learning models
+=============================================================================
+MODEL TRAINING MODULE - HUẤN LUYỆN MÔ HÌNH MACHINE LEARNING
+=============================================================================
+Mô tả:
+    Module xử lý toàn bộ quá trình huấn luyện các mô hình Machine Learning
+    cho bài toán Credit Scoring (phân loại nhị phân).
+
+Các thuật toán hỗ trợ:
+    1. Logistic Regression - Hồi quy logistic
+    2. Random Forest - Rừng ngẫu nhiên  
+    3. Gradient Boosting - Tăng cường gradient
+    4. XGBoost - Extreme Gradient Boosting
+    5. LightGBM - Light Gradient Boosting Machine
+    6. CatBoost - Categorical Boosting
+    7. Stacking Ensemble - Kết hợp nhiều models
+
+Các chức năng chính:
+    - train_model(): Huấn luyện model đơn lẻ với early stopping
+    - train_stacking_model(): Huấn luyện Stacking Classifier
+    - tune_stacking_with_oof(): Tune Stacking với Out-of-Fold (tránh data leakage)
+    - cross_validate_model(): Cross-validation K-Fold
+    - hyperparameter_tuning(): Grid Search / Random Search
+    - optuna_hyperparameter_tuning(): Bayesian Optimization với Optuna
+
+NGUYÊN TẮC QUAN TRỌNG:
+    - Test set KHÔNG BAO GIỜ được dùng cho training hoặc early stopping
+    - Validation set được dùng cho early stopping và monitoring
+    - Tách biệt rõ ràng train/valid/test để tránh data leakage
+=============================================================================
 """
 
 import pandas as pd
@@ -14,6 +41,11 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import xgboost as xgb
 import lightgbm as lgb
 import catboost as cb
+
+
+# =============================================================================
+# PHẦN 1: HUẤN LUYỆN MODEL ĐƠN LẺ (SINGLE MODEL TRAINING)
+# =============================================================================
 
 def train_model(X_train, y_train, X_test, y_test, model_type, params=None,
                 X_valid=None, y_valid=None, early_stopping_rounds=None):

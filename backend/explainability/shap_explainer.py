@@ -1,12 +1,49 @@
 """
-SHAP Explainer Module
-Tính toán SHAP values cho model explanation
+=============================================================================
+SHAP EXPLAINER MODULE - GIẢI THÍCH MÔ HÌNH VỚI SHAP
+=============================================================================
+Mô tả:
+    Module tính toán SHAP (SHapley Additive exPlanations) values để giải thích
+    quyết định của model. SHAP dựa trên lý thuyết game Shapley values.
+
+SHAP values cho biết:
+    - Feature nào đóng góp nhiều nhất vào dự đoán
+    - Chiều hướng tác động (tăng/giảm xác suất default)
+    - Mức độ tác động của từng giá trị feature
+
+Các loại SHAP Explainer:
+    1. TreeExplainer: Cho tree-based models (RF, XGBoost, LightGBM, CatBoost)
+       - Nhanh và chính xác
+    2. LinearExplainer: Cho linear models (Logistic Regression)
+       - Exact attribution
+    3. KernelExplainer: Cho bất kỳ model nào
+       - Chậm hơn, dùng làm fallback
+
+Các chức năng chính:
+    1. SHAPExplainer class:
+       - compute_shap_values(): Tính SHAP values cho dataset
+       - get_feature_importance(): Global importance (mean |SHAP|)
+       - get_local_explanation(): Local explanation cho 1 sample
+    
+    2. Utility functions:
+       - initialize_shap_explainer(): Khởi tạo + tính SHAP
+       - compute_shap_for_sample(): Tính SHAP cho 1 sample
+
+Lưu ý hiệu năng:
+    - Với dataset lớn, sử dụng sample (500 background, 1000 explain)
+    - TreeExplainer nhanh nhất (~O(TL2^M)) với T trees, L leaves, M depth
+=============================================================================
 """
 
 import numpy as np
 import pandas as pd
 import shap
 from typing import Dict, Any, Optional, Tuple, List
+
+
+# =============================================================================
+# CLASS SHAP EXPLAINER
+# =============================================================================
 
 
 class SHAPExplainer:

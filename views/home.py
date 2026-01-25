@@ -1,19 +1,57 @@
 """
-Dashboard - Home Page
+=============================================================================
+DASHBOARD - TRANG CHỦ (HOME PAGE)
+=============================================================================
+Mô tả:
+    Trang Dashboard hiển thị tổng quan về tiến độ workflow và các chức năng
+    chính của hệ thống Credit Scoring.
+
+Chức năng chính:
+    1. Hiển thị Progress Bar - Tiến độ hoàn thành các bước workflow
+    2. Hiển thị trạng thái từng bước: Load data → Split → Preprocess → Train → SHAP → Predict
+    3. Cung cấp các nút điều hướng nhanh đến các trang chức năng
+
+Workflow Steps:
+    - Tải dữ liệu: Upload CSV
+    - Chia tập dữ liệu: Train/Valid/Test split
+    - Tiền xử lý: Missing, Encoding, Scaling, Outliers
+    - Chọn đặc trưng: Feature selection
+    - Huấn luyện: Train model
+    - Chọn model: Select best model
+    - SHAP: Model explanation
+    - Dự đoán: Prediction
+=============================================================================
 """
 
 import streamlit as st
 from utils.ui_components import render_info_card
 from utils.session_state import init_session_state, get_session_info
 
+
+# =============================================================================
+# RENDER FUNCTION - Hàm chính render trang Dashboard
+# =============================================================================
 def render():
-    """Render dashboard page"""
+    """
+    Render trang Dashboard chính
+    
+    Chức năng:
+        - Khởi tạo session state
+        - Lấy thông tin phiên làm việc hiện tại
+        - Hiển thị progress bar và workflow steps
+        - Hiển thị grid các tính năng chính
+    """
+    # Khởi tạo session state nếu chưa có
     init_session_state()
     
+    # Lấy thông tin session hiện tại (has_data, has_model, num_features,...)
     session_info = get_session_info()
     
-    # Check if any preprocessing has been applied (any modification to data)
-    # This includes any applied configs or transformations
+    # =========================================================================
+    # KIỂM TRA TRẠNG THÁI TIỀN XỬ LÝ
+    # =========================================================================
+    # Kiểm tra xem đã có bất kỳ preprocessing nào được áp dụng chưa
+    # Bao gồm cả config đã lưu và các transformation đã apply
     has_preprocessing = (
         # Config-based checks
         st.session_state.get('missing_config') or 
@@ -35,7 +73,14 @@ def render():
         session_info.get('has_processed_data', False)
     )
     
-    # Define workflow steps
+    # =========================================================================
+    # ĐỊNH NGHĨA CÁC BƯỚC WORKFLOW
+    # =========================================================================
+    # Mỗi bước workflow bao gồm:
+    # - name: Tên hiển thị
+    # - icon: Icon emoji
+    # - done: Trạng thái hoàn thành (True/False)
+    # - detail: Chi tiết trạng thái hiện tại
     workflow_steps = [
         {
             "name": "Tải dữ liệu",
