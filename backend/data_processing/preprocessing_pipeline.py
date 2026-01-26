@@ -52,11 +52,16 @@ class PreprocessingPipeline:
         - Theo dõi các cột đã được xử lý
     
     Attributes:
-        scalers: Dict lưu scalers đã fit cho từng nhóm cột
-        imputers: Dict lưu thông tin imputation cho từng cột
-        encoders: Dict lưu encoders đã fit cho từng cột
-        outlier_bounds: Dict lưu ngưỡng outliers cho từng cột
-        fitted_columns: Dict theo dõi các cột đã fit theo loại transform
+        scalers: Dict lưu scalers đã fit cho từng nhóm cột {key: scaler_object}
+        imputers: Dict lưu thông tin imputation cho từng cột {col: {method, value}}
+        encoders: Dict lưu encoders đã fit cho từng cột {col: {encoder, mapping}}
+        outlier_bounds: Dict lưu ngưỡng outliers cho từng cột {col: {lower, upper}}
+        fitted_columns: Dict theo dõi cột nào đã được xử lý bước nào
+        
+    CƠ CHẾ HOẠT ĐỘNG:
+    1. FIT: Tính toán tham số từ dữ liệu TRAIN (ví dụ: tính Mean, tính Min/Max)
+    2. TRANSFORM: Áp dụng tham số đó vào dữ liệu (Train/Valid/Test)
+    -> Đảm bảo tính nhất quán và tránh Data Leakage.
     """
     
     def __init__(self):
@@ -143,6 +148,10 @@ class PreprocessingPipeline:
         
         return self.imputers[column]
     
+    # -------------------------------------------------------------------------
+    # TRANSFORM IMPUTATION
+    # Áp dụng logic đã học từ bước FIT vào dữ liệu mới
+    # -------------------------------------------------------------------------
     def transform_imputation(
         self, 
         data: pd.DataFrame, 
@@ -234,6 +243,10 @@ class PreprocessingPipeline:
             'fitted': True
         }
     
+    # -------------------------------------------------------------------------
+    # TRANSFORM SCALING
+    # Sử dụng Scaler đã fit (lưu trong self.scalers) để biến đổi dữ liệu
+    # -------------------------------------------------------------------------
     def transform_scaling(
         self, 
         data: pd.DataFrame, 
@@ -358,6 +371,11 @@ class PreprocessingPipeline:
         
         return self.encoders[column]
     
+    # -------------------------------------------------------------------------
+    # TRANSFORM ENCODING
+    # Sử dụng Encoder/Mapping đã fit để biến đổi biến phân loại thành số
+    # Lưu ý: Handle trường hợp giá trị mới (Unseen categories) trong Test set
+    # -------------------------------------------------------------------------
     def transform_encoding(
         self, 
         data: pd.DataFrame, 
