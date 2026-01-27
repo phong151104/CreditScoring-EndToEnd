@@ -79,15 +79,8 @@ def balance_data(
             'original_size': len(data)
         }
         
-        # No balancing
-        if method == "No Balancing":
-            info['balanced_distribution'] = original_dist
-            info['balanced_size'] = len(data)
-            info['message'] = "No balancing applied"
-            return data, info
-        
         # Random Over-sampling
-        elif method == "Random Over-sampling":
+        if method == "Random Over-sampling":
             from imblearn.over_sampling import RandomOverSampler
             
             ros = RandomOverSampler(

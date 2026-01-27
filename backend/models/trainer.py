@@ -100,49 +100,87 @@ def train_model(X_train, y_train, X_test, y_test, model_type, params=None,
         }
     
     try:
+        # =====================================================================
+        # LOGISTIC REGRESSION - Hồi quy Logistic
+        # ---------------------------------------------------------------------
+        # Ưu điểm: Nhanh, dễ giải thích (interpretable), phù hợp dữ liệu tuyến tính
+        # Tham số chính:
+        #   - C: Regularization strength (1/lambda). C càng nhỏ = regularization càng mạnh
+        #   - max_iter: Số vòng lặp tối đa để hội tụ
+        # =====================================================================
         if model_type == "Logistic Regression":
             model = LogisticRegression(
-                C=params.get('C', 1.0),
-                max_iter=params.get('max_iter', 200),
+                C=params.get('C', 1.0),                    # Mặc định: 1.0 (cân bằng)
+                max_iter=params.get('max_iter', 200),      # Mặc định: 200 iterations
                 random_state=params.get('random_state', 42)
             )
             model.fit(X_train, y_train)
-            
+        
+        # =====================================================================
+        # RANDOM FOREST - Rừng Ngẫu Nhiên
+        # ---------------------------------------------------------------------
+        # Ưu điểm: Mạnh mẽ, chống overfitting tốt, xử lý được dữ liệu phi tuyến
+        # Tham số chính:
+        #   - n_estimators: Số cây trong rừng (càng nhiều càng ổn định nhưng chậm)
+        #   - max_depth: Độ sâu tối đa mỗi cây (None = không giới hạn)
+        #   - min_samples_split: Số mẫu tối thiểu để tách node
+        # =====================================================================
         elif model_type == "Random Forest":
             model = RandomForestClassifier(
-                n_estimators=params.get('n_estimators', 100),
-                max_depth=params.get('max_depth', None),
+                n_estimators=params.get('n_estimators', 100),     # Mặc định: 100 cây
+                max_depth=params.get('max_depth', None),          # Mặc định: không giới hạn
                 min_samples_split=params.get('min_samples_split', 2),
                 random_state=params.get('random_state', 42)
             )
             model.fit(X_train, y_train)
-            
+        
+        # =====================================================================
+        # GRADIENT BOOSTING - Tăng cường Gradient (sklearn)
+        # ---------------------------------------------------------------------
+        # Ưu điểm: Hiệu suất cao, học từ sai số của model trước
+        # Tham số chính:
+        #   - n_estimators: Số cây boosting
+        #   - learning_rate: Tốc độ học (nhỏ hơn = học chậm nhưng chính xác hơn)
+        #   - max_depth: Độ sâu tối đa (thường nhỏ: 3-7)
+        #   - subsample: Tỷ lệ mẫu dùng cho mỗi cây (<1.0 giúp chống overfit)
+        # =====================================================================
         elif model_type == "Gradient Boosting":
             model = GradientBoostingClassifier(
-                n_estimators=params.get('n_estimators', 100),
-                learning_rate=params.get('learning_rate', 0.1),
-                max_depth=params.get('max_depth', 3),
-                subsample=params.get('subsample', 1.0),
+                n_estimators=params.get('n_estimators', 100),     # Mặc định: 100 cây
+                learning_rate=params.get('learning_rate', 0.1),   # Mặc định: 0.1
+                max_depth=params.get('max_depth', 3),             # Mặc định: 3 (shallow)
+                subsample=params.get('subsample', 1.0),           # Mặc định: 100% mẫu
                 random_state=params.get('random_state', 42)
             )
             model.fit(X_train, y_train)
-            
+        
+        # =====================================================================
+        # XGBOOST - Extreme Gradient Boosting
+        # ---------------------------------------------------------------------
+        # Ưu điểm: Nhanh, hiệu suất cao, hỗ trợ GPU, xử lý missing values tự động
+        # Hỗ trợ Early Stopping: Dừng sớm nếu validation không cải thiện
+        # Tham số chính:
+        #   - n_estimators: Số cây boosting
+        #   - learning_rate (eta): Tốc độ học
+        #   - max_depth: Độ sâu tối đa (mặc định 6, cao hơn sklearn)
+        # =====================================================================
         elif model_type == "XGBoost":
             model = xgb.XGBClassifier(
                 n_estimators=params.get('n_estimators', 100),
                 learning_rate=params.get('learning_rate', 0.1),
-                max_depth=params.get('max_depth', 6),
+                max_depth=params.get('max_depth', 6),             # XGBoost mặc định sâu hơn
                 subsample=params.get('subsample', 1.0),
                 random_state=params.get('random_state', 42),
                 use_label_encoder=False,
-                eval_metric='logloss'
+                eval_metric='logloss'                             # Metric đánh giá: Log Loss
             )
             
-            # Early stopping with validation set (NOT test set to avoid data leakage)
+            # EARLY STOPPING: Dừng sớm dựa trên Validation Set (KHÔNG dùng Test Set!)
+            # Giúp tránh overfitting bằng cách dừng khi validation không cải thiện
             if X_valid is not None and y_valid is not None and early_stopping_rounds:
                 model.fit(
                     X_train, y_train,
-                    eval_set=[(X_valid, y_valid)],
+                    eval_set=[(X_valid, y_valid)],    # Dùng validation set để theo dõi
                     verbose=False
                 )
                 model.set_params(early_stopping_rounds=early_stopping_rounds)
@@ -154,18 +192,26 @@ def train_model(X_train, y_train, X_test, y_test, model_type, params=None,
                 early_stopped_iteration = model.best_iteration if hasattr(model, 'best_iteration') else None
             else:
                 model.fit(X_train, y_train)
-            
+        
+        # =====================================================================
+        # LIGHTGBM - Light Gradient Boosting Machine
+        # ---------------------------------------------------------------------
+        # Ưu điểm: Cực nhanh, bộ nhớ thấp, xử lý dữ liệu lớn tốt
+        # Sử dụng histogram-based algorithm và leaf-wise tree growth
+        # Tham số chính:
+        #   - max_depth: -1 = không giới hạn (khác với XGBoost)
+        # =====================================================================
         elif model_type == "LightGBM":
             model = lgb.LGBMClassifier(
                 n_estimators=params.get('n_estimators', 100),
                 learning_rate=params.get('learning_rate', 0.1),
-                max_depth=params.get('max_depth', -1),
+                max_depth=params.get('max_depth', -1),            # -1 = không giới hạn
                 subsample=params.get('subsample', 1.0),
                 random_state=params.get('random_state', 42),
-                verbose=-1
+                verbose=-1                                        # Tắt log output
             )
             
-            # Early stopping with validation set
+            # EARLY STOPPING cho LightGBM
             if X_valid is not None and y_valid is not None and early_stopping_rounds:
                 callbacks = [lgb.early_stopping(stopping_rounds=early_stopping_rounds, verbose=False)]
                 model.fit(
@@ -176,23 +222,32 @@ def train_model(X_train, y_train, X_test, y_test, model_type, params=None,
                 early_stopped_iteration = model.best_iteration_ if hasattr(model, 'best_iteration_') else None
             else:
                 model.fit(X_train, y_train)
-            
+        
+        # =====================================================================
+        # CATBOOST - Categorical Boosting
+        # ---------------------------------------------------------------------
+        # Ưu điểm: Xử lý biến phân loại tự động (không cần encoding thủ công)
+        # Ít cần tiền xử lý dữ liệu, chống overfitting tốt
+        # Tham số chính:
+        #   - iterations: Số cây (tương đương n_estimators)
+        #   - depth: Độ sâu (tương đương max_depth)
+        # =====================================================================
         elif model_type == "CatBoost":
             model = cb.CatBoostClassifier(
-                iterations=params.get('n_estimators', 100),
+                iterations=params.get('n_estimators', 100),       # CatBoost gọi là iterations
                 learning_rate=params.get('learning_rate', 0.1),
-                depth=params.get('max_depth', 6),
+                depth=params.get('max_depth', 6),                 # CatBoost gọi là depth
                 subsample=params.get('subsample', 1.0),
                 random_state=params.get('random_state', 42),
-                verbose=0,
-                allow_writing_files=False
+                verbose=0,                                        # Tắt log
+                allow_writing_files=False                         # Không ghi cache ra file
             )
             
-            # Early stopping with validation set
+            # EARLY STOPPING cho CatBoost
             if X_valid is not None and y_valid is not None and early_stopping_rounds:
                 model.fit(
                     X_train, y_train,
-                    eval_set=(X_valid, y_valid),
+                    eval_set=(X_valid, y_valid),                  # CatBoost dùng tuple, không list
                     early_stopping_rounds=early_stopping_rounds
                 )
                 early_stopped_iteration = model.best_iteration_ if hasattr(model, 'best_iteration_') else None
@@ -343,16 +398,42 @@ def train_stacking_model(X_train, y_train, X_test, y_test,
         y_pred = stacking_model.predict(X_test)
         y_pred_proba = stacking_model.predict_proba(X_test)[:, 1] if hasattr(stacking_model, "predict_proba") else None
         
-        # Calculate metrics
-        metrics = {
+        # Predictions on train set (for overfitting detection)
+        y_train_pred = stacking_model.predict(X_train)
+        y_train_proba = stacking_model.predict_proba(X_train)[:, 1] if hasattr(stacking_model, "predict_proba") else None
+        
+        # Calculate train metrics
+        train_metrics = {
+            'accuracy': accuracy_score(y_train, y_train_pred),
+            'precision': precision_score(y_train, y_train_pred, zero_division=0),
+            'recall': recall_score(y_train, y_train_pred, zero_division=0),
+            'f1': f1_score(y_train, y_train_pred, zero_division=0),
+            'auc': roc_auc_score(y_train, y_train_proba) if y_train_proba is not None else 0.5
+        }
+        
+        # Calculate test metrics
+        test_metrics = {
             'accuracy': accuracy_score(y_test, y_pred),
             'precision': precision_score(y_test, y_pred, zero_division=0),
             'recall': recall_score(y_test, y_pred, zero_division=0),
             'f1': f1_score(y_test, y_pred, zero_division=0),
-            'auc': roc_auc_score(y_test, y_pred_proba) if y_pred_proba is not None else 0.5,
+            'auc': roc_auc_score(y_test, y_pred_proba) if y_pred_proba is not None else 0.5
+        }
+        
+        # Calculate metrics (primary = test metrics)
+        metrics = {
+            'accuracy': test_metrics['accuracy'],
+            'precision': test_metrics['precision'],
+            'recall': test_metrics['recall'],
+            'f1': test_metrics['f1'],
+            'auc': test_metrics['auc'],
             'confusion_matrix': confusion_matrix(y_test, y_pred).tolist(),
             'base_models': base_models,
-            'meta_model': meta_model
+            'meta_model': meta_model,
+            # For overfitting detection
+            'train_metrics': train_metrics,
+            'test_metrics': test_metrics,
+            'valid_metrics': None
         }
         
         return stacking_model, metrics
@@ -573,16 +654,42 @@ def tune_stacking_with_oof(X_train, y_train, X_test, y_test,
         y_pred = stacking_model.predict(X_test)
         y_pred_proba = stacking_model.predict_proba(X_test)[:, 1] if hasattr(stacking_model, "predict_proba") else None
         
-        # Calculate metrics
-        metrics = {
+        # Predictions on train set (for overfitting detection)
+        y_train_pred = stacking_model.predict(X_train)
+        y_train_proba = stacking_model.predict_proba(X_train)[:, 1] if hasattr(stacking_model, "predict_proba") else None
+        
+        # Calculate train metrics
+        train_metrics = {
+            'accuracy': accuracy_score(y_train, y_train_pred),
+            'precision': precision_score(y_train, y_train_pred, zero_division=0),
+            'recall': recall_score(y_train, y_train_pred, zero_division=0),
+            'f1': f1_score(y_train, y_train_pred, zero_division=0),
+            'auc': roc_auc_score(y_train, y_train_proba) if y_train_proba is not None else 0.5
+        }
+        
+        # Calculate test metrics
+        test_metrics = {
             'accuracy': accuracy_score(y_test, y_pred),
             'precision': precision_score(y_test, y_pred, zero_division=0),
             'recall': recall_score(y_test, y_pred, zero_division=0),
             'f1': f1_score(y_test, y_pred, zero_division=0),
-            'auc': roc_auc_score(y_test, y_pred_proba) if y_pred_proba is not None else 0.5,
+            'auc': roc_auc_score(y_test, y_pred_proba) if y_pred_proba is not None else 0.5
+        }
+        
+        # Calculate metrics (primary = test metrics)
+        metrics = {
+            'accuracy': test_metrics['accuracy'],
+            'precision': test_metrics['precision'],
+            'recall': test_metrics['recall'],
+            'f1': test_metrics['f1'],
+            'auc': test_metrics['auc'],
             'confusion_matrix': confusion_matrix(y_test, y_pred).tolist(),
             'base_models': model_order,
-            'meta_model': meta_model
+            'meta_model': meta_model,
+            # For overfitting detection
+            'train_metrics': train_metrics,
+            'test_metrics': test_metrics,
+            'valid_metrics': None
         }
         
         tuning_info = {
