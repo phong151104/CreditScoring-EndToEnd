@@ -1,10 +1,50 @@
 """
-Permissions Module - Role-Based Access Control (RBAC)
+=============================================================================
+PERMISSIONS MODULE - HỆ THỐNG PHÂN QUYỀN (RBAC)
+=============================================================================
+Mô tả:
+    Module quản lý Role-Based Access Control (RBAC) cho ứng dụng.
+    Kiểm soát quyền truy cập trang và chức năng theo vai trò người dùng.
+
+CÁC VAI TRÒ (ROLES):
+    1. admin - Quản trị viên:
+       - Full quyền truy cập mọi chức năng
+       - Quản lý users, cấu hình hệ thống
+       
+    2. model_builder - Xây dựng mô hình:
+       - Upload data, EDA, Train model, Tuning
+       - KHÔNG có quyền quản lý users và Admin Settings
+       
+    3. validator - Kiểm định viên:
+       - CHỈ XEM (view-only) các trang kỹ thuật
+       - Có thể tạo AI analysis trên trang SHAP
+       - Không thể thay đổi data hoặc train model
+       
+    4. scorer - Người chấm điểm:
+       - CHỈ truy cập trang Prediction
+       - Sử dụng model đã deploy để chấm điểm
+
+QUYỀN TRUY CẬP TRANG:
+    | Trang                    | Admin | Builder | Validator | Scorer |
+    |--------------------------|-------|---------|-----------|--------|
+    | Dashboard                |   ✅  |    ✅   |     ✅    |   ❌   |
+    | Data Upload & Analysis   |   ✅  |    ✅   |  ✅ View  |   ❌   |
+    | Feature Engineering      |   ✅  |    ✅   |  ✅ View  |   ❌   |
+    | Model Training           |   ✅  |    ✅   |  ✅ View  |   ❌   |
+    | Model Explanation        |   ✅  |    ✅   |  ✅ View  |   ❌   |
+    | Prediction & Advisory    |   ✅  |    ✅   |  ✅ View  |   ✅   |
+    | Admin Settings           |   ✅  |    ❌   |     ❌    |   ❌   |
+=============================================================================
 """
 
 import streamlit as st
 from functools import wraps
 from typing import List, Callable
+
+
+# =============================================================================
+# ĐỊNH NGHĨA QUYỀN THEO VAI TRÒ (ROLE PERMISSIONS)
+# =============================================================================
 
 # Role permission mappings
 ROLE_PERMISSIONS = {

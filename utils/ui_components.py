@@ -1,8 +1,36 @@
 """
-UI Components - Các thành phần giao diện tùy chỉnh
+=============================================================================
+UI COMPONENTS - CÁC THÀNH PHẦN GIAO DIỆN TÙY CHỈNH
+=============================================================================
+Mô tả:
+    Module chứa các component UI tái sử dụng cho toàn bộ ứng dụng.
+    Bao gồm CSS tùy chỉnh và các hàm render component.
+
+Các chức năng chính:
+    1. load_custom_css(): Load CSS tùy chỉnh cho toàn app
+    2. render_header(): Render header chính của ứng dụng
+    3. render_metric_card(): Render card hiển thị metric
+    4. render_info_card(): Render card thông tin
+    5. show_llm_analysis(): Hiển thị khu vực phân tích AI
+    6. show_processing_placeholder(): Placeholder cho backend
+
+CSS Tùy chỉnh bao gồm:
+    - Header gradient styling
+    - Card components (info-card, metric-card)
+    - Button hover effects
+    - Sidebar navigation styling
+    - Tab styling
+    - File uploader styling
+    - Plotly chart container
+=============================================================================
 """
 
 import streamlit as st
+
+
+# =============================================================================
+# LOAD CUSTOM CSS
+# =============================================================================
 
 def load_custom_css():
     """Load custom CSS cho ứng dụng"""

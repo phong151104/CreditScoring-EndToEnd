@@ -1,6 +1,33 @@
 """
-Preprocessing Pipeline - Quản lý các bước tiền xử lý dữ liệu
-Đảm bảo fit trên train, transform trên train/valid/test
+=============================================================================
+PREPROCESSING PIPELINE - QUẢN LÝ TIỀN XỬ LÝ DỮ LIỆU
+=============================================================================
+Mô tả:
+    Module quản lý toàn bộ quy trình tiền xử lý dữ liệu một cách nhất quán.
+    
+NGUYÊN TẮC QUAN TRỌNG - TRÁNH DATA LEAKAGE:
+    - TẤT CẢ các transformer đều được FIT trên TRAIN DATA
+    - Sau đó TRANSFORM trên Train, Validation, Test data
+    - Điều này đảm bảo không có thông tin từ test/valid "rò rỉ" vào train
+
+Các chức năng chính:
+    1. fit_imputer() / transform_imputation(): Xử lý giá trị thiếu
+    2. fit_scaler() / transform_scaling(): Chuẩn hóa dữ liệu số
+    3. fit_encoder() / transform_encoding(): Mã hóa biến categorical
+    4. fit_outlier_bounds() / transform_outliers(): Xử lý outliers
+
+Workflow sử dụng:
+    pipeline = PreprocessingPipeline()
+    
+    # Bước 1: FIT trên train data
+    pipeline.fit_imputer(train_data, 'age', 'Mean Imputation')
+    pipeline.fit_scaler(train_data, ['income', 'age'], 'StandardScaler')
+    
+    # Bước 2: TRANSFORM trên tất cả datasets
+    train_processed = pipeline.transform_imputation(train_data, 'age')
+    valid_processed = pipeline.transform_imputation(valid_data, 'age')
+    test_processed = pipeline.transform_imputation(test_data, 'age')
+=============================================================================
 """
 
 import pandas as pd
@@ -12,28 +39,67 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
+# =============================================================================
+# CLASS PREPROCESSING PIPELINE
+# =============================================================================
 class PreprocessingPipeline:
     """
     Class quản lý preprocessing pipeline.
-    Đảm bảo fit trên train data, transform trên tất cả datasets.
+    
+    Mục đích:
+        - Đảm bảo FIT trên train data, TRANSFORM trên tất cả datasets
+        - Lưu trữ các transformer đã fit để tái sử dụng
+        - Theo dõi các cột đã được xử lý
+    
+    Attributes:
+        scalers: Dict lưu scalers đã fit cho từng nhóm cột {key: scaler_object}
+        imputers: Dict lưu thông tin imputation cho từng cột {col: {method, value}}
+        encoders: Dict lưu encoders đã fit cho từng cột {col: {encoder, mapping}}
+        outlier_bounds: Dict lưu ngưỡng outliers cho từng cột {col: {lower, upper}}
+        fitted_columns: Dict theo dõi cột nào đã được xử lý bước nào
+        
+    CƠ CHẾ HOẠT ĐỘNG:
+    1. FIT: Tính toán tham số từ dữ liệu TRAIN (ví dụ: tính Mean, tính Min/Max)
+    2. TRANSFORM: Áp dụng tham số đó vào dữ liệu (Train/Valid/Test)
+    -> Đảm bảo tính nhất quán và tránh Data Leakage.
     """
     
     def __init__(self):
-        # Store fitted transformers
-        self.scalers: Dict[str, Any] = {}           # {col: fitted_scaler}
+        """
+        Khởi tạo PreprocessingPipeline.
+        Tạo các dict rỗng để lưu trữ transformers và tracking.
+        """
+        # =====================================================================
+        # LƯU TRỮ CÁC TRANSFORMERS ĐÃ FIT
+        # =====================================================================
+        self.scalers: Dict[str, Any] = {}           # {cols_key: {scaler, method, columns}}
         self.imputers: Dict[str, Dict] = {}         # {col: {method, fill_value}}
-        self.encoders: Dict[str, Dict] = {}         # {col: {method, mapping}}
+        self.encoders: Dict[str, Dict] = {}         # {col: {method, mapping/encoder}}
         self.outlier_bounds: Dict[str, Dict] = {}   # {col: {lower, upper, method}}
         
-        # Track what has been fitted
+        # =====================================================================
+        # THEO DÕI CÁC CỘT ĐÃ ĐƯỢC FIT
+        # =====================================================================
+        # Giúp biết cột nào đã được xử lý với loại transform nào
         self.fitted_columns: Dict[str, List[str]] = {
-            'scaling': [],
-            'imputation': [],
-            'encoding': [],
-            'outliers': []
+            'scaling': [],      # Các cột đã fit scaler
+            'imputation': [],   # Các cột đã fit imputer
+            'encoding': [],     # Các cột đã fit encoder
+            'outliers': []      # Các cột đã fit outlier bounds
         }
     
-    # ==================== MISSING VALUE HANDLING ====================
+    # =========================================================================
+    # PHẦN 1: XỬ LÝ GIÁ TRỊ THIẾU (MISSING VALUE HANDLING)
+    # =========================================================================
+    # Các phương pháp hỗ trợ:
+    # - Mean Imputation: Điền bằng giá trị trung bình
+    # - Median Imputation: Điền bằng giá trị trung vị
+    # - Mode Imputation: Điền bằng giá trị xuất hiện nhiều nhất
+    # - Constant Value: Điền bằng giá trị cố định
+    # - Forward Fill: Điền bằng giá trị trước đó
+    # - Backward Fill: Điền bằng giá trị sau đó
+    # - Interpolation: Nội suy giá trị
+    # =========================================================================
     
     def fit_imputer(
         self, 
@@ -82,6 +148,10 @@ class PreprocessingPipeline:
         
         return self.imputers[column]
     
+    # -------------------------------------------------------------------------
+    # TRANSFORM IMPUTATION
+    # Áp dụng logic đã học từ bước FIT vào dữ liệu mới
+    # -------------------------------------------------------------------------
     def transform_imputation(
         self, 
         data: pd.DataFrame, 
@@ -173,6 +243,10 @@ class PreprocessingPipeline:
             'fitted': True
         }
     
+    # -------------------------------------------------------------------------
+    # TRANSFORM SCALING
+    # Sử dụng Scaler đã fit (lưu trong self.scalers) để biến đổi dữ liệu
+    # -------------------------------------------------------------------------
     def transform_scaling(
         self, 
         data: pd.DataFrame, 
@@ -297,6 +371,11 @@ class PreprocessingPipeline:
         
         return self.encoders[column]
     
+    # -------------------------------------------------------------------------
+    # TRANSFORM ENCODING
+    # Sử dụng Encoder/Mapping đã fit để biến đổi biến phân loại thành số
+    # Lưu ý: Handle trường hợp giá trị mới (Unseen categories) trong Test set
+    # -------------------------------------------------------------------------
     def transform_encoding(
         self, 
         data: pd.DataFrame, 

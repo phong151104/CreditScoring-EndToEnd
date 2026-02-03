@@ -1,7 +1,92 @@
 """
-Upload & EDA Page - Upload data and exploratory data analysis
+=============================================================================
+UPLOAD & EDA PAGE - TRANG TẢI DỮ LIỆU VÀ PHÂN TÍCH KHÁM PHÁ (EDA)
+=============================================================================
+
+MÔ TẢ:
+    Trang này cho phép người dùng tải lên file CSV và thực hiện phân tích 
+    khám phá dữ liệu (Exploratory Data Analysis - EDA).
+
+CẤU TRÚC FILE:
+    1. IMPORTS & DEPENDENCIES (Line 50-70)
+       - Các thư viện cần thiết: streamlit, pandas, numpy, plotly, scipy
+       - Import từ backend: llm_integration (cho phân tích AI)
+       
+    2. HÀM CHÍNH render() (Line 70+)
+       Điều khiển toàn bộ logic của trang, bao gồm:
+       
+       2.1. PHẦN UPLOAD FILE MỚI (Line ~50-1180)
+            - File uploader để tải CSV
+            - Xử lý file mới/cũ, clear session state
+            - 4 TABs phân tích:
+            
+            [TAB 1] DỮ LIỆU MẪU (Line ~100-410)
+                - Hiển thị bảng dữ liệu với st.dataframe
+                - Tạo Feature Cards trực quan cho từng cột:
+                  * Biến số: Histogram, stats (min/max/mean/unique)
+                  * Biến phân loại: Bar chart, stats (mode/unique/top%)
+                - Thông tin missing values cho từng cột
+                - Metrics tổng quan (rows, columns, missing %, numeric cols)
+                
+            [TAB 2] THỐNG KÊ MÔ TẢ (Line ~425-675)
+                - Bảng describe() cho biến số
+                - Phân tích chi tiết từng cột:
+                  * Summary metrics (count, mean, median, std, min, max)
+                  * Histogram với marginal box plot (Plotly)
+                  * Box plot phát hiện outliers
+                  * Quantile analysis (1%, 5%, 25%, 50%, 75%, 95%, 99%)
+                  * Outlier analysis (IQR method)
+                  * Distribution characteristics (skewness, kurtosis, CV)
+                  * Binned value distribution
+                - Thống kê biến phân loại
+                
+            [TAB 3] PHÂN PHỐI & TƯƠNG QUAN (Line ~676-925)
+                - Correlation Heatmap (Plotly imshow)
+                - Tìm cặp biến có tương quan cao
+                - Scatter Matrix (Pair Plot)
+                - Scatter Plot 2 biến với trendline
+                - Grouped Analysis (Box/Violin/Strip Plot theo nhóm)
+                
+            [TAB 4] PHÂN TÍCH AI (Line ~927-1180)
+                - Kiểm tra cấu hình LLM
+                - Gọi backend/llm_integration để phân tích
+                - Hiển thị kết quả phân tích AI
+                - Tự động tạo gợi ý tiền xử lý (8 bước)
+                - Download phân tích dạng Markdown
+                
+       2.2. PHẦN HIỂN THỊ DỮ LIỆU ĐÃ LƯU (Line ~1185-1742)
+            - Hiển thị lại EDA khi user đã có data trong session
+            - Cùng 4 tabs như trên (cached version)
+            - Nút xóa và upload mới
+            
+       2.3. PHẦN VIEW-ONLY CHO DỮ LIỆU CŨ (Line ~1744-1787)
+            - Hiển thị đơn giản cho user view-only
+            
+       2.4. PHẦN HƯỚNG DẪN KHI CHƯA CÓ FILE (Line ~1789-1830)
+            - Hiển thị mẫu định dạng CSV
+            - Tạo và download dữ liệu mẫu
+
+LƯU Ý:
+    - File này KHÔNG có backend riêng (ngoại trừ llm_integration)
+    - Tất cả logic vẽ biểu đồ và tính toán thống kê được xử lý trực tiếp
+    - Charts được tạo bằng: Matplotlib (mini charts), Plotly (interactive charts)
+    - Session state được dùng để lưu: data, current_tab, ai_analysis, preprocessing_suggestions
+
+DEPENDENCIES:
+    - streamlit: Framework web
+    - pandas: Xử lý dữ liệu
+    - numpy: Tính toán số
+    - plotly: Biểu đồ tương tác
+    - scipy: Thống kê (skewness, kurtosis)
+    - matplotlib: Mini charts trong Feature Cards
+    - backend/llm_integration: Phân tích AI với Google Gemini
+
+=============================================================================
 """
 
+# =============================================================================
+# IMPORTS & DEPENDENCIES
+# =============================================================================
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -14,6 +99,9 @@ from backend.llm_integration import analyze_eda_with_llm, get_eda_summary, LLMCo
 from utils.permissions import check_and_show_view_only
 
 
+# =============================================================================
+# HÀM CHÍNH - RENDER TRANG UPLOAD & EDA
+# =============================================================================
 
 def render():
     """Render Upload & EDA page"""
@@ -29,10 +117,16 @@ def render():
     st.markdown("## 📤 Tải Dữ Liệu & Phân Tích Khám Phá Dữ Liệu (EDA)")
     st.markdown("Tải lên file CSV chứa dữ liệu khách hàng và khám phá các thông tin quan trọng.")
     
-    # Check view-only mode
+    # Kiểm tra quyền view-only (Validator chỉ xem, không upload được)
     is_view_only = check_and_show_view_only("📊 Data Upload & Analysis")
     
     st.markdown("---")
+    
+    # =========================================================================
+    # PHẦN 1: FILE UPLOADER
+    # - Cho phép user tải lên file CSV
+    # - View-only users không được upload
+    # =========================================================================
     
     # File uploader - show message for view-only users
     if is_view_only:
@@ -46,6 +140,12 @@ def render():
             key="csv_uploader"
         )
     
+    # =========================================================================
+    # PHẦN 2: XỬ LÝ FILE ĐÃ UPLOAD
+    # - Đọc CSV, validate dữ liệu
+    # - Clear session state nếu là file mới
+    # - Lưu data vào st.session_state.data
+    # =========================================================================
     if uploaded_file is not None:
         try:
             # Check if this is a new file
@@ -72,12 +172,19 @@ def render():
             st.session_state.data = data
             st.success(f"✅ Đã tải dữ liệu thành công! ({len(data)} dòng, {len(data.columns)} cột)")
             
-            # Use session state to track current tab (workaround for st.tabs not preserving state)
+            # =========================================================================
+            # PHẦN 3: ĐỊNH NGHĨA VÀ HIỂN THỊ 4 TABS PHÂN TÍCH
+            # - Tab 1: Dữ Liệu Mẫu - Hiển thị data + mini charts
+            # - Tab 2: Thống Kê Mô Tả - describe(), phân tích chi tiết
+            # - Tab 3: Phân Phối Dữ Liệu - Correlation, Scatter plots
+            # - Tab 4: Phân Tích AI - Gọi LLM để phân tích tự động
+            # =========================================================================
+            
+            # Lưu tab hiện tại vào session state để preserve state khi rerun
             if 'current_eda_tab' not in st.session_state:
                 st.session_state.current_eda_tab = "📋 Dữ Liệu Mẫu"
             
-            # Tab selector using radio (preserves state on rerun)
-            # Define tabs
+            # Định nghĩa 4 tabs
             tabs = ["📋 Dữ Liệu Mẫu", "📊 Thống Kê Mô Tả", "📈 Phân Phối Dữ Liệu", "✨ Phân Tích AI"]
             
             # Tab selector using radio (preserves state on rerun)
@@ -97,7 +204,15 @@ def render():
             
             st.markdown("---")
             
-            # Tab 1: Sample Data
+            # =================================================================
+            # TAB 1: DỮ LIỆU MẪu (Sample Data)
+            # - Hiển thị bảng dữ liệu với st.dataframe
+            # - Tạo Feature Cards trực quan cho từng cột:
+            #   * Biến số: Histogram/bar chart với Matplotlib
+            #   * Biến phân loại: Horizontal bar chart
+            # - Hiển thị stats: min/max/mean/unique, missing values
+            # - Metrics tổng quan cuối trang
+            # =================================================================
             if selected_tab == "📋 Dữ Liệu Mẫu":
                 st.markdown("### 📋 Dữ Liệu Mẫu")
                 
@@ -422,7 +537,19 @@ def render():
                     numeric_cols = data.select_dtypes(include=[np.number]).columns
                     st.metric("🔢 Numeric Columns", len(numeric_cols))
             
-            # Tab 2: Descriptive Statistics
+            # =================================================================
+            # TAB 2: THỐNG KÊ MÔ TẢ (Descriptive Statistics)
+            # - Bảng describe() cho biến số với gradient highlighting
+            # - Phân tích chi tiết từng cột số:
+            #   * Summary metrics: count, mean, median, std, min, max
+            #   * Histogram với marginal box plot (Plotly)
+            #   * Box plot phát hiện outliers
+            #   * Quantile analysis: 1%, 5%, 25%, 50%, 75%, 95%, 99%
+            #   * Outlier analysis (IQR method)
+            #   * Distribution: skewness, kurtosis, CV (coefficient of variation)
+            #   * Binned value distribution
+            # - Thống kê biến phân loại: unique, mode, top frequency
+            # =================================================================
             elif selected_tab == tabs[1]:
                 st.markdown("### 📊 Thống Kê Mô Tả")
                 
@@ -673,7 +800,20 @@ def render():
                     cat_df = pd.DataFrame(cat_info)
                     st.dataframe(cat_df, width='stretch')
             
-            # Tab 3: Data Distribution
+            # =================================================================
+            # TAB 3: PHÂN PHỐI & TƯƠNG QUAN (Distribution & Correlation)
+            # Có 4 loại biểu đồ :
+            # 1. Correlation Heatmap - Ma trận tương quan (Plotly imshow)
+            #    - Tìm cặp biến có tương quan cao theo threshold
+            # 2. Scatter Matrix (Pair Plot) - Ma trận biểu đồ phân tán
+            #    - Hiển thị mối quan hệ giữa từng cặp biến
+            # 3. Scatter Plot 2 biến - Phân tích chi tiết
+            #    - Trendline OLS, marginal histograms
+            #    - Tính Pearson correlation
+            # 4. Grouped Analysis - Phân tích theo nhóm
+            #    - Box/Violin/Strip Plot theo biến phân loại
+            #    - Thống kê theo nhóm: count, mean, median, std
+            # =================================================================
             elif selected_tab == tabs[2]:
                 st.markdown("### 📈 Phân Phối & Tương Quan Dữ Liệu")
                 
@@ -924,7 +1064,22 @@ def render():
                         if not cat_cols:
                             st.warning("Không có biến phân loại nào trong dữ liệu.")
             
-            # Tab 4: AI Analysis
+            # =================================================================
+            # TAB 4: PHÂN TÍCH AI (AI Analysis)
+            # - Kiểm tra cấu hình LLM (Google Gemini API key)
+            # - Gọi backend/llm_integration để phân tích tự động
+            # - Hiển thị kết quả phân tích AI (markdown format)
+            # - Tự động tạo gợi ý tiền xử lý (8 bước):
+            #   1. Chia tập Train/Valid/Test
+            #   2. Xử lý biến định danh & giá trị không hợp lệ
+            #   3. Xử lý giá trị thiếu (Missing values)
+            #   4. Xử lý Outliers & biến đổi phân phối
+            #   5. Mã hóa biến phân loại (Encoding)
+            #   6. Phân nhóm (Binning)
+            #   7. Chuẩn hóa / Scaling
+            #   8. Cân bằng dữ liệu (Balancing)
+            # - Download phân tích dạng Markdown
+            # =================================================================
             elif selected_tab == tabs[3]:
                 st.markdown("### ✨ Phân Tích Tự Động Bằng AI")
                 
@@ -1183,7 +1338,13 @@ QUAN TRỌNG:
             st.error(f"❌ Lỗi khi đọc file: {str(e)}")
     
     else:
-        # If data exists, show full EDA with option to clear
+        # =====================================================================
+        # PHẦN 4: HIỂN THỊ DỮ LIỆU ĐÃ LƯU TRONG SESSION (Cached Data)
+        # - Khi user không upload file mới nhưng đã có data trong session
+        # - Hiển thị lại EDA với cùng 4 tabs như trên
+        # - Có nút "Xóa & Upload Mới" để clear session
+        # - Lưu ý: Sử dụng keys khác với phần upload mới (đuôi _cached)
+        # =====================================================================
         if 'data' in st.session_state and st.session_state.data is not None:
             data = st.session_state.data
             
@@ -1741,7 +1902,12 @@ QUAN TRỌNG:
             
             return
         
-        # Check if we have existing data in session (for view-only users)
+        # =====================================================================
+        # PHẦN 5: HIỂN THỊ ĐƠN GIẢN CHO VIEW-ONLY USERS
+        # - Khi user có quyền view-only (Validator) và đã có data
+        # - Chỉ hiển thị basic EDA, không cho phép upload/modify
+        # - 3 tabs đơn giản: Dữ Liệu Mẫu, Thống Kê Mô Tả, Phân Phối
+        # =====================================================================
         if st.session_state.get('data') is not None:
             data = st.session_state.data
             st.success(f"📊 Đang xem dữ liệu đã tải ({len(data)} dòng, {len(data.columns)} cột)")
@@ -1786,7 +1952,12 @@ QUAN TRỌNG:
             
             return
         
-        # No data at all - show sample format
+        # =====================================================================
+        # PHẦN 6: HƯỚNG DẪN KHI CHƯA CÓ FILE UPLOAD
+        # - Hiển thị message hướng dẫn user
+        # - Mẫu định dạng CSV cần thiết
+        # - Tạo và cho download dữ liệu mẫu (sample_credit_data.csv)
+        # =====================================================================
         print("DEBUG: No file uploaded, showing sample format")
         st.info("📝 Chưa có file tải lên. Vui lòng chọn file CSV.")
         

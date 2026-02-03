@@ -1,12 +1,41 @@
 """
-Configuration for LLM Integration
+=============================================================================
+LLM INTEGRATION CONFIG - CẤU HÌNH TÍCH HỢP AI
+=============================================================================
+Mô tả:
+    Module cấu hình cho các dịch vụ LLM (Large Language Model).
+    Hỗ trợ nhiều provider: OpenAI, Anthropic Claude, Google Gemini.
+
+Các biến môi trường cần thiết (trong file .env):
+    - GOOGLE_API_KEY: API key cho Google Gemini (khuyến nghị)
+    - OPENAI_API_KEY: API key cho OpenAI GPT (tùy chọn)
+    - ANTHROPIC_API_KEY: API key cho Anthropic Claude (tùy chọn)
+    - GOOGLE_MODEL: Model Gemini (mặc định: gemini-2.5-flash)
+    - LLM_PROVIDER: Provider mặc định (mặc định: google)
+    - LLM_MAX_TOKENS: Số token tối đa (mặc định: 8000)
+    - LLM_TEMPERATURE: Temperature (mặc định: 0.7)
+
+Cách sử dụng:
+    from backend.llm_integration.config import LLMConfig
+    
+    # Kiểm tra đã cấu hình chưa
+    if LLMConfig.is_configured():
+        api_key = LLMConfig.get_api_key()
+        model = LLMConfig.get_model()
+=============================================================================
 """
+
 import os
 from typing import Optional
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load biến môi trường từ file .env
 load_dotenv()
+
+
+# =============================================================================
+# CLASS CẤU HÌNH LLM
+# =============================================================================
 
 
 class LLMConfig:

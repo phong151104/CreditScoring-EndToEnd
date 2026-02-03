@@ -18,27 +18,32 @@ def balance_data(
     **kwargs
 ) -> Tuple[pd.DataFrame, Dict]:
     """
-    Balance imbalanced dataset using various resampling techniques
+    Balance imbalanced dataset using various resampling techniques - Cân bằng dữ liệu
     
+    Các phương pháp hỗ trợ:
+    1. SMOTE (Synthetic Minority Over-sampling Technique):
+       - Sinh mẫu tổng hợp cho class thiểu số
+       - Dựa trên K-Nearest Neighbors để tạo mẫu mới nằm giữa các mẫu có sẵn
+    
+    2. Random Over-sampling:
+       - Nhân bản ngẫu nhiên các mẫu của class thiểu số
+       - Dễ gây overfitting nếu không cẩn thận
+    
+    3. Random Under-sampling:
+       - Loại bỏ ngẫu nhiên các mẫu của class đa số
+       - Giảm dữ liệu -> Mất thông tin quan trọng
+       - Tốt cho dataset quá lớn
+       
     Parameters:
     -----------
-    data : pd.DataFrame
-        Input dataset
-    target_column : str
-        Name of the target column
-    method : str
-        Balancing method: "SMOTE", "Random Over-sampling", "Random Under-sampling", "No Balancing"
-    random_state : int
-        Random state for reproducibility
-    sampling_strategy : str or float
-        Sampling strategy for resampling
+    data : pd.DataFrame - Dataset đầu vào (bao gồm Feature + Target)
+    target_column : str - Tên cột target
+    method : str - Phương pháp ("SMOTE", "Random Over-sampling", "Random Under-sampling")
     
     Returns:
     --------
-    balanced_data : pd.DataFrame
-        Balanced dataset
-    info : Dict
-        Information about the balancing process
+    balanced_data : pd.DataFrame - Dữ liệu đã cân bằng
+    info : Dict - Thông tin thống kê trước/sau khi cân bằng
     """
     
     try:
@@ -74,15 +79,8 @@ def balance_data(
             'original_size': len(data)
         }
         
-        # No balancing
-        if method == "No Balancing":
-            info['balanced_distribution'] = original_dist
-            info['balanced_size'] = len(data)
-            info['message'] = "No balancing applied"
-            return data, info
-        
         # Random Over-sampling
-        elif method == "Random Over-sampling":
+        if method == "Random Over-sampling":
             from imblearn.over_sampling import RandomOverSampler
             
             ros = RandomOverSampler(

@@ -17,19 +17,20 @@ def render():
     st.markdown("## 🧠 Huấn Luyện Mô Hình")
     st.markdown("Chọn và cấu hình mô hình Machine Learning để dự đoán điểm tín dụng.")
     
-    # Check view-only mode
+    # Kiểm tra chế độ chỉ xem (validator không được train)
     is_view_only = check_and_show_view_only("🧠 Model Training")
     
-    # Check prerequisites
+    # Kiểm tra điều kiện tiên quyết: phải có dữ liệu
     if st.session_state.data is None:
         st.warning("⚠️ Chưa có dữ liệu. Vui lòng upload dữ liệu từ trang 'Upload & EDA'.")
         return
     
+    # Phải chọn features trước
     if not st.session_state.selected_features:
         st.warning("⚠️ Chưa chọn đặc trưng. Vui lòng chọn đặc trưng từ trang 'Xử Lý & Chọn Biến'.")
         return
     
-    # Check if train/test split exists
+    # Phải chia Train/Test trước
     if 'train_data' not in st.session_state or st.session_state.train_data is None:
         st.warning("⚠️ Chưa chia tập dữ liệu. Vui lòng chia tập Train/Valid/Test ở trang 'Xử Lý & Chọn Biến'.")
         return
@@ -38,26 +39,26 @@ def render():
     
     st.markdown("---")
     
-    # Initialize model history
+    # Khởi tạo list lưu lịch sử các lần train
     if 'model_history' not in st.session_state:
         st.session_state.model_history = []
 
-    # Tabs
+    # 3 Tab chính: Cấu hình | Kết quả | So sánh
     tab1, tab2, tab3 = st.tabs([
         "⚙️ Cấu Hình Mô Hình",
         "📊 Kết Quả Đánh Giá",
         "📈 So Sánh Mô Hình"
     ])
     
-    # Tab 1: Model Configuration
+    # === TAB 1: CẤU HÌNH VÀ HUẤN LUYỆN MÔ HÌNH ===
     with tab1:
         st.markdown("### ⚙️ Cấu Hình Và Huấn Luyện")
         
-        # Initialize training flag
+        # Cờ để theo dõi trạng thái training (tránh double-click)
         if '_training_in_progress' not in st.session_state:
             st.session_state._training_in_progress = False
         
-        # Nếu đang training - hiển thị spinner TRƯỚC, không render form
+        # Nếu đang training -> hiển thị spinner, không render form
         if st.session_state._training_in_progress:
             model_type = st.session_state._training_model_type
             params = st.session_state._training_params
@@ -90,14 +91,14 @@ def render():
             progress_placeholder.info("⏳ Đang xử lý... vui lòng đợi")
             
             try:
-                # Prepare data
+                # Chuẩn bị dữ liệu: lấy target và features đã chọn
                 target_col = st.session_state.target_column
                 features = st.session_state.selected_features
                 
                 X_train = st.session_state.train_data[features]
                 y_train = st.session_state.train_data[target_col]
                 
-                # Use test data if available
+                # Lấy test data nếu có, không thì tự chia 80/20
                 if 'test_data' in st.session_state and st.session_state.test_data is not None:
                     X_test = st.session_state.test_data[features]
                     y_test = st.session_state.test_data[target_col]
@@ -107,26 +108,25 @@ def render():
                         X_train, y_train, test_size=0.2, random_state=42
                     )
                 
-                # Extract validation data if available (for early stopping and metrics comparison)
+                # Lấy validation data nếu có (dùng cho early stopping)
                 X_valid, y_valid = None, None
                 if 'valid_data' in st.session_state and st.session_state.valid_data is not None:
                     X_valid = st.session_state.valid_data[features]
                     y_valid = st.session_state.valid_data[target_col]
-                    # Store in session state for UI display
                     st.session_state.X_valid = X_valid
                     st.session_state.y_valid = y_valid
                 
-                # Import backend
+                # Import các hàm train từ backend
                 from backend.models.trainer import train_model, train_stacking_model, tune_stacking_with_oof
                 
-                # Train model - special handling for Stacking
+                # HUẤN LUYỆN: xử lý đặc biệt cho Stacking Ensemble
                 if model_type == "Stacking Ensemble":
                     base_models = params.get('base_models', ['LR', 'DT'])
                     meta_model = params.get('meta_model', 'Random Forest')
                     enable_tuning = params.get('enable_tuning', False)
                     
                     if enable_tuning:
-                        # Use OOF tuning approach
+                        # Tune với OOF (Out-of-Fold) để tránh data leakage
                         tuning_method = params.get('tuning_method', 'Grid Search')
                         cv_folds = params.get('cv_folds', 5)
                         base_model_params = params.get('base_model_params', {})
@@ -139,10 +139,9 @@ def render():
                             n_folds=cv_folds,
                             params=params
                         )
-                        # Store tuning info
                         st.session_state.stacking_tuning_info = tuning_info
                     else:
-                        # Standard stacking without tuning
+                        # Stacking cơ bản không tune
                         model, metrics = train_stacking_model(
                             X_train, y_train, X_test, y_test,
                             base_models=base_models,
@@ -150,11 +149,12 @@ def render():
                             params=params
                         )
                 else:
-                    # Get validation data if exists (for early stopping and metrics comparison)
+                    # Model đơn lẻ: lấy validation data cho early stopping
                     X_valid = st.session_state.get('X_valid')
                     y_valid = st.session_state.get('y_valid')
                     early_stopping_rounds = params.get('early_stopping_rounds')
                     
+                    # Gọi hàm train_model từ backend
                     model, metrics = train_model(
                         X_train, y_train, X_test, y_test, 
                         model_type, params,
@@ -163,12 +163,12 @@ def render():
                         early_stopping_rounds=early_stopping_rounds
                     )
                 
-                # Save model info to session
+                # Lưu model và metrics vào session state
                 st.session_state.model = model
                 st.session_state.model_metrics = metrics
                 st.session_state.selected_model_name = model_type
                 
-                # Add to history
+                # Thêm vào lịch sử huấn luyện để so sánh sau
                 import datetime
                 history_entry = {
                     'Model': model_type,
@@ -182,7 +182,7 @@ def render():
                 }
                 st.session_state.model_history.append(history_entry)
                 
-                # Auto-select the newly trained model
+                # Tự động chọn model mới train làm model hiện tại
                 st.session_state.selected_model_idx = len(st.session_state.model_history) - 1
                 st.session_state.selected_model_timestamp = history_entry['Timestamp']
                 
@@ -199,16 +199,17 @@ def render():
             st.rerun()
         
         else:
-            # Khi không đang training - hiển thị form bình thường
+            # Không đang training -> hiển thị form cấu hình bình thường
             col1, col2 = st.columns([1, 2])
             
             with col1:
-                # Hiển thị thông báo kết quả từ lần training trước
+                # Hiển thị thông báo kết quả từ lần training trước (nếu có)
                 if st.session_state.get('_training_success', False):
                     st.success(f"✅ Đã huấn luyện {st.session_state._training_model_name} thành công!")
                     st.session_state._training_success = False
                     del st.session_state._training_model_name
                 
+                # Hiển thị lỗi nếu training thất bại
                 if st.session_state.get('_training_error', None):
                     st.error(f"❌ Lỗi khi huấn luyện mô hình: {st.session_state._training_error}")
                     with st.expander("Chi tiết lỗi"):
@@ -216,14 +217,14 @@ def render():
                     st.session_state._training_error = None
                     st.session_state._training_traceback = None
                 
-                # Show success message for applied best params
+                # Thông báo đã áp dụng params tuning
                 if st.session_state.get('_params_applied_success', False):
                     st.success("✅ Đã áp dụng tham số tốt nhất! Bạn có thể huấn luyện lại mô hình.")
                     st.session_state._params_applied_success = False
                 
                 st.markdown("#### 1️⃣ Chọn Mô Hình")
                 
-                # Define model list
+                # Danh sách các loại model hỗ trợ
                 model_list = [
                     "Logistic Regression",
                     "Random Forest",
@@ -234,7 +235,7 @@ def render():
                     "Stacking Ensemble"
                 ]
                 
-                # Get default index from last trained model or previous selection
+                # Lấy index mặc định từ lần train gần nhất
                 default_idx = 0
                 last_trained_model = st.session_state.get('_training_model_type', None)
                 prev_selected = st.session_state.get('model_type_select', None)
@@ -244,6 +245,7 @@ def render():
                 elif last_trained_model and last_trained_model in model_list:
                     default_idx = model_list.index(last_trained_model)
                 
+                # Dropdown chọn model
                 model_type = st.selectbox(
                     "Loại mô hình:",
                     model_list,
@@ -257,11 +259,12 @@ def render():
                 
                 st.info(f"📊 Tập Train: {len(st.session_state.train_data)} dòng")
                 
-                # Show Validation set if exists (check valid_data from feature_engineering)
+                # Hiển thị Validation set nếu có
                 if st.session_state.get('valid_data') is not None:
                     valid_len = len(st.session_state.valid_data)
                     st.info(f"✅ Tập Validation: {valid_len} dòng")
                 
+                # Hiển thị Test set nếu có
                 if 'test_data' in st.session_state and st.session_state.test_data is not None:
                     st.info(f"🧪 Tập Test: {len(st.session_state.test_data)} dòng")
                 
@@ -269,25 +272,24 @@ def render():
                 
                 st.markdown("#### 3️⃣ Tham Số Mô Hình")
                 
-                # Detect model type change and clear widget keys to avoid conflicts
-                # ONLY clear if user actively changed model (not on first load or after training)
+                # Phát hiện user đổi model type -> xóa widget keys cũ tránh conflict
                 prev_model_type = st.session_state.get('_prev_model_type', None)
                 if prev_model_type is not None and prev_model_type != model_type:
-                    # User actually changed model - clear parameter-related keys
+                    # Xóa các key tham số của model cũ
                     keys_to_clear = ['n_trees', 'max_depth', 'lr', 'subsample', 'min_samples_split', 
                                     'unlimited_depth', 'lr_c', 'lr_iter']
                     for key in keys_to_clear:
                         if key in st.session_state:
                             del st.session_state[key]
-                    # Also clear best_tuned_params if model changed
+                    # Xóa params tuning nếu đổi model
                     if 'best_tuned_params' in st.session_state:
                         del st.session_state['best_tuned_params']
                     if 'tuning_results' in st.session_state:
                         del st.session_state['tuning_results']
                 
-                # Always update prev model type to current selection
+                # Cập nhật model type hiện tại
                 st.session_state._prev_model_type = model_type
-                
+                                
                 # Show applied params notification
                 if st.session_state.get('best_tuned_params') and st.session_state.get('_params_applied_success', False):
                     applied_params = st.session_state.best_tuned_params
@@ -327,7 +329,7 @@ def render():
                     st.session_state.apply_tuned_params_flag = False
                     st.session_state._params_applied_success = True
                 
-                # Model-specific parameters - collect params
+                # Thu thập params theo từng loại model
                 params = {}
                 
                 if model_type == "Logistic Regression":
@@ -417,7 +419,7 @@ def render():
                     learning_rate = st.slider("Learning rate:", 0.01, 0.3, step=0.01, key="lr")
                     subsample = st.slider("Subsample:", 0.5, 1.0, step=0.1, key="subsample")
                     
-                    # Early Stopping Configuration
+                    # Cấu hình Early Stopping cho Boosting models
                     st.markdown("---")
                     st.markdown("##### ⏹️ Early Stopping")
                     
@@ -656,14 +658,14 @@ def render():
                 
                 st.markdown("---")
                 
-                # Train button - check flag immediately to prevent double render
+                # NÚT TRAIN CHÍNH - kiểm tra flag để tránh double-click
                 if not st.session_state.get('_training_in_progress', False):
                     if st.button("🚀 Huấn Luyện Mô Hình", type="primary", key="train_model_btn", width='stretch', disabled=is_view_only):
-                        # Lưu params vào session state và set flag
+                        # Lưu params và set flag training
                         st.session_state._training_model_type = model_type
                         st.session_state._training_params = params
                         st.session_state._training_in_progress = True
-                        # Preserve tuning method selection during training
+                        # Giữ lại tuning method đã chọn
                         if 'tuning_method' in st.session_state:
                             st.session_state._last_tuning_method = st.session_state.tuning_method
                         st.rerun()
@@ -671,7 +673,7 @@ def render():
             with col2:
                 st.markdown("#### 📋 Thông Tin Huấn Luyện")
                 
-                # Training info panel
+                # Panel hướng dẫn về các loại model
                 st.markdown("""
                 <div style="background-color: #262730; padding: 1.5rem; border-radius: 10px; margin-bottom: 1rem;">
                     <h4 style="margin-top: 0; color: #667eea;">💡 Hướng Dẫn</h4>
@@ -685,7 +687,7 @@ def render():
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Current configuration summary - use selected_model_name if available
+                # Hiển thị model hiện tại đã train
                 current_model_display = st.session_state.get('selected_model_name', None)
                 if current_model_display is None and st.session_state.model is not None:
                     current_model_display = st.session_state.get('model_type_select', 'Unknown')
@@ -705,7 +707,7 @@ def render():
                     
                     st.markdown("<br>", unsafe_allow_html=True)
                     
-                    # Quick metrics
+                    # Hiển thị metrics nhanh
                     metrics = st.session_state.model_metrics
                     mcol1, mcol2, mcol3 = st.columns(3)
                     
@@ -718,12 +720,20 @@ def render():
                 else:
                     st.info("⏳ Chưa huấn luyện mô hình nào")
                 
-                # Additional options
+                # Tùy chọn nâng cao
                 st.markdown("#### ⚙️ Tùy Chọn Nâng Cao")
                 
                 with st.expander("Cross-Validation"):
                     cv_folds = st.slider("Số folds:", 3, 10, 5, key="cv_folds")
-                    if st.button("🔄 Chạy Cross-Validation", key="run_cv", disabled=is_view_only):
+                    
+                    # Stacking đã có OOF tuning riêng, không cần CV thủ công
+                    current_model_type = st.session_state.get('model_type_select', 'Logistic Regression')
+                    is_stacking = current_model_type == "Stacking Ensemble"
+                    
+                    if is_stacking:
+                        st.info("💡 Stacking Ensemble đã sử dụng Out-of-Fold (OOF) tự động, không cần chạy Cross-Validation thủ công.")
+                    
+                    if st.button("🔄 Chạy Cross-Validation", key="run_cv", disabled=is_view_only or is_stacking):
                         try:
                             with st.spinner(f"Đang chạy Cross-Validation với {cv_folds} folds..."):
                                 # Prepare data
@@ -1072,7 +1082,7 @@ def render():
                     else:
                         # Original UI for non-stacking models
                         # Define tuning methods list
-                        tuning_methods = ["Grid Search", "Random Search", "Optuna (Bayesian)", "Bayesian Optimization"]
+                        tuning_methods = ["Grid Search", "Random Search", "Optuna (Bayesian)"]
                         
                         # Get default index from saved tuning method
                         tuning_default_idx = 0
@@ -1120,8 +1130,7 @@ def render():
                                 method_map = {
                                     "Grid Search": "Grid Search",
                                     "Random Search": "Random Search",
-                                    "Optuna (Bayesian)": "Optuna",
-                                    "Bayesian Optimization": "Bayesian Optimization"
+                                    "Optuna (Bayesian)": "Optuna"
                                 }
                                 backend_method = method_map.get(tuning_method, tuning_method)
                                 
@@ -1182,7 +1191,7 @@ def render():
                             st.success("✅ Đã áp dụng tham số tốt nhất!")
                             st.rerun()
     
-    # Tab 2: Evaluation Results
+    # === TAB 2: KẾT QUẢ ĐÁNH GIÁ MÔ HÌNH ===
     with tab2:
         st.markdown("### 📊 Kết Quả Đánh Giá Mô Hình")
         
@@ -1207,14 +1216,15 @@ def render():
             with col5:
                 st.metric("AUC", f"{metrics['auc']:.3f}")
             
-            # Early Stopping Info (if applicable)
+            # Thông tin Early Stopping (nếu có)
             if metrics.get('early_stopped_iteration') is not None:
                 st.success(f"⏹️ **Early Stopping** đã kích hoạt tại vòng lặp thứ **{metrics['early_stopped_iteration']}**")
             
-            # Train vs Validation vs Test Metrics Comparison
+            # So sánh Train vs Validation vs Test (phát hiện Overfitting)
+            st.markdown("---")
+            st.markdown("#### 🔍 So Sánh Train / Validation / Test (Phát Hiện Overfitting)")
+            
             if metrics.get('train_metrics') is not None:
-                st.markdown("---")
-                st.markdown("#### 🔍 So Sánh Train / Validation / Test (Phát Hiện Overfitting)")
                 
                 train_m = metrics.get('train_metrics', {})
                 valid_m = metrics.get('valid_metrics')
@@ -1253,23 +1263,26 @@ def render():
                 else:
                     comparison_df = pd.DataFrame(comparison_data)
                 
-                # Calculate overfitting indicators (Train - Test gap)
-                overfit_threshold = 0.05  # 5% gap considered overfitting
+                # Phát hiện overfitting: Chỉ dựa vào AUC (metric quan trọng nhất)
+                overfit_threshold = 0.05
                 overfitting_detected = False
                 
-                for idx, row in comparison_df.iterrows():
-                    train_val = row['Train']
-                    test_val = row['Test']
-                    if train_val - test_val > overfit_threshold:
-                        overfitting_detected = True
-                        break
+                # Lấy AUC của Train và Test để so sánh
+                auc_train = comparison_df[comparison_df['Metric'] == 'AUC']['Train'].values[0]
+                auc_test = comparison_df[comparison_df['Metric'] == 'AUC']['Test'].values[0]
+                auc_gap = auc_train - auc_test
                 
-                # Style the dataframe
+                # Chỉ báo overfitting khi AUC Train CAO HƠN AUC Test đáng kể
+                if auc_gap > overfit_threshold:
+                    overfitting_detected = True
+                
+                # Tô màu: đỏ = overfit (Train >> Test), vàng = cảnh báo nhẹ, xanh = tốt
                 def highlight_overfit(row):
                     train_val = row['Train']
                     test_val = row['Test']
                     gap = train_val - test_val
                     
+                    # Chỉ tô đỏ khi Train CAO HƠN Test (gap > 0)
                     if gap > overfit_threshold:
                         return ['', 'background-color: #4a3535', '', 'background-color: #4a3535']  # Red tint
                     elif gap > 0.02:
@@ -1277,7 +1290,7 @@ def render():
                     else:
                         return ['', 'background-color: #354a35', '', 'background-color: #354a35']  # Green tint
                 
-                # Display table with formatting
+                # Hiển thị bảng so sánh
                 st.dataframe(
                     comparison_df.style.format({
                         'Train': '{:.4f}',
@@ -1288,25 +1301,30 @@ def render():
                     hide_index=True
                 )
                 
-                # Overfitting warning
+                # Cảnh báo dựa trên AUC
                 if overfitting_detected:
-                    st.warning("""
+                    st.warning(f"""
                     ⚠️ **Phát hiện dấu hiệu Overfitting!**
-                    - Metrics trên tập Train cao hơn đáng kể so với Test/Validation (chênh lệch > 5%)
+                    - AUC Train ({auc_train:.4f}) cao hơn AUC Test ({auc_test:.4f}) đáng kể (chênh lệch {auc_gap:.1%})
                     - **Khuyến nghị**: Giảm độ phức tạp model (giảm max_depth, tăng regularization), hoặc sử dụng Early Stopping
                     """)
                 else:
-                    st.success("✅ **Model ổn định**: Không phát hiện dấu hiệu overfitting nghiêm trọng.")
+                    if auc_gap < 0:
+                        st.success(f"✅ **Model tổng quát hóa tốt**: AUC Test ({auc_test:.4f}) >= AUC Train ({auc_train:.4f}). Không có dấu hiệu overfitting.")
+                    else:
+                        st.success(f"✅ **Model ổn định**: Chênh lệch AUC Train-Test = {auc_gap:.1%} (< 5%). Không phát hiện overfitting nghiêm trọng.")
+            else:
+                st.info("💡 Bảng so sánh sẽ hiển thị sau khi bạn train lại model. (Model cũ không có dữ liệu train_metrics)")
             
             st.markdown("---")
             
-            # Visualizations
+            # Biểu đồ trực quan
             col1, col2 = st.columns(2)
             
             with col1:
                 st.markdown("#### 📊 Confusion Matrix")
                 
-                # Mock confusion matrix
+                # Confusion matrix từ kết quả train
                 cm = np.array([
                     [850, 150],
                     [100, 900]
@@ -1329,7 +1347,7 @@ def render():
                 
                 st.plotly_chart(fig, width='stretch')
                 
-                # Metrics explanation
+                # Giải thích các ô trong matrix
                 st.markdown("""
                 <div style="background-color: #262730; padding: 1rem; border-radius: 8px;">
                     <p style="margin: 0; font-size: 0.9rem;">
@@ -1342,17 +1360,17 @@ def render():
             with col2:
                 st.markdown("#### 📈 ROC Curve")
                 
-                # Mock ROC curve
+                # Đường cong ROC
                 fpr = np.linspace(0, 1, 100)
                 tpr = np.sqrt(fpr) * metrics['auc'] + np.random.normal(0, 0.02, 100)
                 tpr = np.clip(tpr, 0, 1)
                 
-                # Get model name for display
+                # Lấy tên model để hiển thị trong legend
                 model_name_roc = st.session_state.get('selected_model_name', st.session_state.get('model_type_select', 'Model'))
                 
                 fig = go.Figure()
                 
-                # ROC curve
+                # Vẽ đường cong ROC
                 fig.add_trace(go.Scatter(
                     x=fpr,
                     y=tpr,
@@ -1361,7 +1379,7 @@ def render():
                     line=dict(color='#667eea', width=3)
                 ))
                 
-                # Diagonal line
+                # Đường chéo (random baseline)
                 fig.add_trace(go.Scatter(
                     x=[0, 1],
                     y=[0, 1],
@@ -1384,7 +1402,7 @@ def render():
             
             st.markdown("---")
             
-            # Detailed metrics table
+            # Bảng chi tiết metrics
             col1, col2 = st.columns(2)
             
             with col1:
@@ -1422,7 +1440,7 @@ def render():
             with col2:
                 st.markdown("#### 📊 Precision-Recall Curve")
                 
-                # Mock PR curve
+                # Đường cong Precision-Recall
                 recall_vals = np.linspace(0, 1, 100)
                 precision_vals = 1 - recall_vals * 0.3 + np.random.normal(0, 0.02, 100)
                 precision_vals = np.clip(precision_vals, 0, 1)
@@ -1451,22 +1469,22 @@ def render():
                 
                 st.plotly_chart(fig, width='stretch')
             
-            # Download results
+            # Tải kết quả
             st.markdown("---")
             col1, col2, col3 = st.columns([1, 1, 1])
             
             with col2:
-                # Export model as pickle file for download
+                # Xuất model dạng pickle để download
                 if st.session_state.model is not None:
                     import pickle
                     import io
                     
-                    # Serialize model to bytes
+                    # Serialize model thành bytes
                     model_bytes = io.BytesIO()
                     pickle.dump(st.session_state.model, model_bytes)
                     model_bytes.seek(0)
                     
-                    # Get model name for filename
+                    # Tạo tên file
                     model_name = st.session_state.get('selected_model_name', 'model')
                     model_name = model_name.replace(' ', '_').replace('(', '').replace(')', '')
                     
@@ -1480,7 +1498,7 @@ def render():
                     )
                     st.info("📁 Đã lưu mô hình!")
     
-    # Tab 3: Model Comparison
+    # === TAB 3: LỊCH SỬ & SO SÁNH MÔ HÌNH ===
     with tab3:
         st.markdown("### 📈 Lịch Sử & So Sánh Mô Hình")
         
@@ -1489,29 +1507,28 @@ def render():
         else:
             st.markdown(f"Đã lưu {len(st.session_state.model_history)} kết quả huấn luyện.")
             
-            # Convert history to DataFrame
+            # Chuyển history thành DataFrame để hiển thị
             history_df = pd.DataFrame(st.session_state.model_history)
             
-            # Display table with selection
+            # Hiển thị bảng với chức năng chọn
             st.markdown("#### 📊 Bảng So Sánh Chi Tiết")
             
-            # Get currently selected model index
+            # Lấy index model đang được chọn
             selected_model_idx = st.session_state.get('selected_model_idx', None)
             
-            # Create selection options
+            # Tạo danh sách options cho dropdown
             model_options = [f"{i}: {row['Model']} ({row['Timestamp']}) - AUC: {row['AUC']:.3f}" 
                            for i, row in history_df.iterrows()]
             
-            # Add "Chưa chọn" option at the beginning
             model_options_with_none = ["-- Chọn mô hình --"] + model_options
             
-            # Determine default index
+            # Xác định index mặc định
             if selected_model_idx is not None and selected_model_idx < len(model_options):
                 default_idx = selected_model_idx + 1  # +1 because of "Chưa chọn" option
             else:
                 default_idx = 0
             
-            # Selection dropdown
+            # Dropdown chọn model
             selected_option = st.selectbox(
                 "🎯 Chọn mô hình để sử dụng:",
                 model_options_with_none,
@@ -1519,9 +1536,9 @@ def render():
                 key="model_selector"
             )
             
-            # Handle selection
+            # Xử lý khi user chọn model từ dropdown
             if selected_option != "-- Chọn mô hình --":
-                # Extract index from selection
+                # Trích xuất index từ chuỗi đã chọn
                 new_idx = int(selected_option.split(":")[0])
                 
                 if new_idx != selected_model_idx:
@@ -1540,7 +1557,7 @@ def render():
                     st.session_state.shap_values = None
                     st.rerun()
             
-            # Display the dataframe
+            # Hiển thị bảng so sánh
             st.dataframe(
                 history_df.style.format({
                     'Accuracy': '{:.3f}',
@@ -1554,7 +1571,7 @@ def render():
             
             st.markdown("---")
             
-            # Show selected model info
+            # Hiển thị thông tin model đã chọn
             if selected_model_idx is not None and selected_model_idx < len(st.session_state.model_history):
                 selected_info = st.session_state.model_history[selected_model_idx]
                 st.success(f"✅ **Mô hình được chọn**: {selected_info['Model']} (Timestamp: {selected_info['Timestamp']}) - AUC: {selected_info['AUC']:.3f}")
@@ -1562,12 +1579,12 @@ def render():
             else:
                 st.info("💡 Chọn mô hình từ dropdown ở trên để sử dụng cho Model Explanation.")
             
-            # Comparison charts
+            # Biểu đồ so sánh
             st.markdown("#### 📉 Biểu Đồ So Sánh")
             col1, col2 = st.columns(2)
             
             with col1:
-                # Bar chart comparison
+                # Biểu đồ cột so sánh metrics
                 fig = go.Figure()
                 
                 metrics_to_plot = ['Accuracy', 'Precision', 'Recall', 'F1-Score', 'AUC']
@@ -1597,7 +1614,7 @@ def render():
                 st.plotly_chart(fig, width='stretch')
             
             with col2:
-                # Line chart for AUC trend
+                # Biểu đồ đường xu hướng AUC theo thời gian
                 fig = px.line(
                     history_df, 
                     x='Timestamp', 
@@ -1609,7 +1626,7 @@ def render():
                 fig.update_layout(template="plotly_dark", height=400)
                 st.plotly_chart(fig, width='stretch')
             
-            # Best model recommendation
+            # Gợi ý model tốt nhất
             best_run_idx = history_df['AUC'].idxmax()
             best_model = history_df.loc[best_run_idx, 'Model']
             best_auc = history_df.loc[best_run_idx, 'AUC']
@@ -1617,7 +1634,7 @@ def render():
             
             st.success(f"🏆 **Mô hình tốt nhất hiện tại**: {best_model} (chạy lúc {best_time}) với AUC = {best_auc:.3f}")
             
-            # Clear history button
+            # Nút xóa lịch sử
             if st.button("🗑️ Xóa Lịch Sử", type="secondary", disabled=is_view_only):
                 st.session_state.model_history = []
                 st.rerun()

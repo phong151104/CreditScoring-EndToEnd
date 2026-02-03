@@ -1,5 +1,47 @@
 """
-Trang Xử Lý & Chọn Biến - Feature Engineering & Selection
+=============================================================================
+FEATURE ENGINEERING PAGE - TRANG XỬ LÝ & CHỌN BIẾN
+=============================================================================
+
+MÔ TẢ:
+    Trang này cung cấp quy trình toàn diện để làm sạch, xử lý và chuẩn bị dữ liệu 
+    cho việc huấn luyện mô hình (Model Training). Được chia thành nhiều bước (Step-by-Step).
+
+CẤU TRÚC FILE:
+    1. IMPORTS & DEPENDENCIES (Line 30-50)
+       - Streamlit, Pandas, Numpy, Plotly
+       - Các module xử lý dữ liệu từ backend (preprocessing_pipeline...)
+
+    2. CÁC FRAGMENT FUNCTIONS (Hàm cục bộ sử dụng @st.fragment)
+       Đây là các component UI độc lập, giúp ngăn việc rerun toàn bộ trang khi user tương tác:
+       
+       - remove_columns_fragment(data): Bước 1 - Loại bỏ cột không cần thiết
+       - validation_fragment(data): Bước 2 - Kiểm tra giá trị hợp lệ (âm/dương/range)
+       - missing_values_fragment(data): Bước 3 - Xử lý giá trị thiếu (Drop/Mean/Median/Mode)
+       - outliers_transform_fragment(data): Bước 4 - Xử lý Outliers & Biến đổi phân phối
+       - encoding_fragment(data): Bước 5 - Mã hóa biến phân loại (One-Hot, Label Encoding)
+       - binning_fragment(data): Bước 6 - Phân nhóm biến liên tục (Equal Width, Frequency...)
+       - scaling_fragment(data): Bước 7 - Chuẩn hóa dữ liệu (Standard/MinMax Scaler)
+       - balancing_fragment(data): Bước 8 - Cân bằng dữ liệu (SMOTE/Undersampling)
+       - split_data_fragment(data): Bước 9 - Chia tập Train/Valid/Test
+       - feature_selection_fragment(data): Bước 10 - Chọn đặc trưng quan trọng cho model
+
+    3. HÀM CHÍNH render() (Line 2625+)
+       - Quản lý luồng chính của trang
+       - Hiển thị Progress Bar theo dõi các bước
+       - Điều hướng giữa các bước (Next/Previous)
+       - Tải dữ liệu từ Session State
+       - Tổng hợp kết quả và lưu processed data
+
+LƯU Ý KỸ THUẬT:
+    - Sử dụng `@st.fragment`: Tối ưu hiệu năng, chỉ render lại phần đang làm việc
+    - `st.session_state`: Lưu trữ cấu hình (config) của từng bước để áp dụng sau này
+    - Backend Integration: Các class transformation thực tế nằm ở `backend/data_processing/`
+
+DEPENDENCIES:
+    - backend.data_processing.preprocessing_pipeline: Pipeline quản lý các bước xử lý
+    - utils.session_state: Quản lý trạng thái phiên làm việc
+=============================================================================
 """
 
 import streamlit as st
@@ -13,6 +55,12 @@ from utils.session_state import init_session_state
 # ============ FRAGMENT FUNCTIONS ============
 # Sử dụng @st.fragment để ngăn rerun toàn bộ trang khi tương tác
 
+# =============================================================================
+# FRAGMENT 1: LOẠI BỎ CỘT (Remove Columns)
+# - Cho phép user chọn các cột không cần thiết để loại bỏ khỏi dataset
+# - Cập nhật trực tiếp vào st.session_state.processed_data
+# - Sử dụng @st.fragment để chỉ rerun phần này khi tương tác
+# =============================================================================
 @st.fragment
 def remove_columns_fragment(data):
     """Fragment để xử lý loại bỏ cột - không gây rerun toàn trang"""
@@ -112,6 +160,16 @@ def remove_columns_fragment(data):
                 st.warning("Vui lòng chọn ít nhất 1 cột")
 
 
+
+# =============================================================================
+# FRAGMENT 2: KIỂM TRA GIÁ TRỊ HỢP LỆ (Data Validation)
+# - Kiểm tra các ràng buộc dữ liệu:
+#   * Giá trị âm (Negative values)
+#   * Ngưỡng tối thiểu (Min threshold)
+#   * Ngưỡng tối đa (Max threshold)
+#   * Khoảng giá trị (Range)
+# - Cho phép xử lý: Giữ nguyên, Xóa dòng, Thay thế bằng NaN, Thay thế bằng giá trị biên
+# =============================================================================
 @st.fragment
 def validation_fragment(data):
     """Fragment để xử lý validation giá trị - không gây rerun toàn trang"""
@@ -338,6 +396,16 @@ def _handle_max_threshold_validation(data, selected_validate_cols, validation_ty
             st.success(f"✅ Đã xử lý {total_invalid} giá trị trong {len(processed_cols)} cột!")
 
 
+
+# =============================================================================
+# FRAGMENT 4: XỬ LÝ OUTLIERS & BIẾN ĐỔI PHÂN PHỐI
+# - Phát hiện Outliers bằng phương pháp IQR hoặc Z-Score
+# - Các phương pháp xử lý:
+#   * Winsorization (Cắt ngọn)
+#   * Log Transformation (Giảm độ lệch)
+#   * Capping/Flooring
+# - Hiển thị biểu đồ Boxplot và Histogram trước/sau khi xử lý
+# =============================================================================
 @st.fragment
 def outliers_transform_fragment(data):
     """Fragment để xử lý outliers và biến đổi phân phối - không gây rerun toàn trang"""
@@ -366,9 +434,9 @@ def outliers_transform_fragment(data):
         
         outlier_method = st.selectbox(
             "Phương pháp:",
-            ["Winsorization", "IQR Method", "Z-Score", "Keep All"],
+            ["IQR Method", "Z-Score", "Winsorization"],
             key="outlier_method_frag",
-            help="Winsorization: Thay outliers bằng phân vị\nIQR: Sử dụng Interquartile Range\nZ-Score: Dựa trên độ lệch chuẩn\nKeep All: Giữ nguyên"
+            help="IQR: Dùng khoảng tứ phân vị\nZ-Score: Dùng độ lệch chuẩn\nWinsorization: Cắt ngọn (thay thế bằng giá trị biên)"
         )
         
         # Show method-specific parameters
@@ -779,6 +847,16 @@ def outliers_transform_fragment(data):
                 st.dataframe(stats_df, width='stretch', hide_index=True)
 
 
+
+# =============================================================================
+# FRAGMENT 3: XỬ LÝ GIÁ TRỊ THIẾU (Missing Values)
+# - Thống kê tỷ lệ missing cho từng cột
+# - Các phương pháp xử lý (Imputation):
+#   * Numerical: Mean, Median, Mode, Zero, KNN
+#   * Categorical: Mode, "Missing", New Category
+#   * Drop: Drop rows, Drop columns
+# - Preview kết quả trước khi áp dụng
+# =============================================================================
 @st.fragment
 def missing_values_fragment(data, missing_data):
     """Fragment để xử lý giá trị thiếu - không gây rerun toàn trang"""
@@ -1027,6 +1105,14 @@ def missing_values_fragment(data, missing_data):
         st.success("✅ Không có giá trị thiếu trong dataset!")
 
 
+
+# =============================================================================
+# FRAGMENT 9: CHIA TẬP DATASET (Train/Valid/Test Split)
+# - Chia dữ liệu thành 3 tập: Train, Validation, Test
+# - Tùy chọn tỷ lệ chia (ví dụ: 70/15/15)
+# - Tùy chọn Stratified Split (giữ nguyên tỷ lệ label)
+# - Tùy chọn Shuffle dữ liệu
+# =============================================================================
 @st.fragment
 def split_data_fragment(data):
     """Fragment để chia tập Train/Valid/Test - không gây rerun toàn trang"""
@@ -1318,6 +1404,16 @@ def _handle_range_validation(data, selected_validate_cols, validation_type):
             st.success(f"✅ Đã xử lý {total_invalid} giá trị trong {len(processed_cols)} cột!")
 
 
+
+# =============================================================================
+# FRAGMENT 5: MÃ HÓA BIẾN PHÂN LOẠI (Encoding)
+# - Mã hóa các biến Categorical thành số (Numerical)
+# - Các phương pháp hỗ trợ:
+#   * One-Hot Encoding: Cho biến định danh không thứ tự (Nominal)
+#   * Label Encoding: Cho biến có thứ tự (Ordinal)
+#   * Target Encoding: Dựa trên giá trị trung bình của target
+# - Tự động phát hiện biến phân loại
+# =============================================================================
 @st.fragment
 def encoding_fragment(data):
     """Fragment để mã hóa biến phân loại - không gây rerun toàn trang"""
@@ -1575,70 +1671,21 @@ def encoding_fragment(data):
                         import traceback
                         with st.expander("Chi tiết"):
                             st.code(traceback.format_exc())
-        
-        # Show current encoding configurations
-        if st.session_state.get('encoding_config'):
-            st.markdown("---")
-            st.markdown("##### 📝 Cấu Hình Mã Hóa Hiện Tại")
-            
-            # Display each configuration with undo button
-            for col, cfg in list(st.session_state.encoding_config.items()):
-                col1, col2, col3 = st.columns([2, 2, 1])
-                
-                with col1:
-                    st.text(f"📌 {col}")
-                with col2:
-                    st.text(f"{cfg['method']} (Số giá trị: {cfg['unique_count']})")
-                with col3:
-                    if cfg.get('applied', False):
-                        # Undo button for applied encoding
-                        if st.button("↩️ Undo", key=f"undo_enc_{col}_frag", width='stretch'):
-                            # Restore from backup
-                            backup_key = f"encoding_{col}"
-                            if backup_key in st.session_state.get('column_backups', {}):
-                                st.session_state.data[col] = st.session_state.column_backups[backup_key]
-                                del st.session_state.column_backups[backup_key]
-                                
-                                # Remove encoded columns if One-Hot
-                                if col in st.session_state.get('encoding_applied_info', {}):
-                                    enc_info = st.session_state.encoding_applied_info[col]
-                                    if 'new_columns' in enc_info:
-                                        for new_col in enc_info['new_columns']:
-                                            if new_col in st.session_state.data.columns:
-                                                st.session_state.data.drop(columns=[new_col], inplace=True)
-                                    del st.session_state.encoding_applied_info[col]
-                                
-                                del st.session_state.encoding_config[col]
-                                st.session_state._encoding_undo_success = f"✅ Đã hoàn tác mã hóa `{col}`"
-                                st.rerun(scope="fragment")
-                    else:
-                        # Delete button for pending config
-                        if st.button("🗑️", key=f"del_enc_{col}_frag", width='stretch'):
-                            del st.session_state.encoding_config[col]
-                            st.rerun(scope="fragment")
-            
-            st.markdown("---")
-            
-            # Show applied encoding info if exists
-            if st.session_state.get('encoding_applied_info'):
-                with st.expander("📋 Xem Chi Tiết Mã Hóa Đã Áp Dụng"):
-                    for col, info in st.session_state.encoding_applied_info.items():
-                        st.markdown(f"**{col}** - {info['method']}")
-                        
-                        if 'new_columns' in info:
-                            st.write(f"Tạo {info['n_new_columns']} cột mới:", info['new_columns'][:10])
-                        elif 'mapping' in info and len(str(info['mapping'])) < 500:
-                            st.write("Mapping:", info['mapping'])
-                        
-                        st.markdown("---")
-        
-        else:
-            st.info("💡 Chưa có cấu hình mã hóa nào. Hãy chọn cột và phương pháp ở trên.")
     
     else:
         st.success("✅ Không có biến phân loại cần mã hóa")
 
 
+
+# =============================================================================
+# FRAGMENT 6: PHÂN NHÓM BIẾN LIÊN TỤC (Binning)
+# - Chuyển đổi biến số liên tục thành biến phân loại (Bins)
+# - Các phương pháp Binning:
+#   * Equal Width: Chia đều khoảng giá trị
+#   * Equal Frequency (Quantile): Chia đều số lượng mẫu
+#   * Custom Edges: Người dùng tự định nghĩa ngưỡng
+# - Hữu ích để xử lý nhiễu và tăng tính ổn định cho model
+# =============================================================================
 @st.fragment
 def binning_fragment(data):
     """Fragment để phân nhóm (binning) biến liên tục - không gây rerun toàn trang"""
@@ -1778,133 +1825,69 @@ def binning_fragment(data):
                                 st.error("❌ Vui lòng chọn target column trước khi sử dụng Optimal Binning!")
                                 binned = None
                             else:
+
                                 try:
-                                    # Try using optbinning library (better IV optimization)
-                                    try:
-                                        from optbinning import OptimalBinning
-                                        use_optbinning = True
-                                    except ImportError:
-                                        use_optbinning = False
-                                        st.warning("⚠️ Thư viện `optbinning` chưa được cài đặt. Sử dụng Decision Tree fallback. Cài đặt bằng: `pip install optbinning`")
+                                    # Use optbinning instead of Decision Tree
+                                    from optbinning import OptimalBinning
                                     
                                     # Prepare data
-                                    X_bin = bin_data.values
-                                    y_bin = st.session_state.data[target_col_for_binning].values
+                                    x = bin_data.values
+                                    y = st.session_state.data[target_col_for_binning].values
                                     
-                                    # Remove NaN
-                                    mask = ~(np.isnan(X_bin) | pd.isna(y_bin))
-                                    X_clean = X_bin[mask]
-                                    y_clean = y_bin[mask].astype(int)
+                                    # Remove NaN for fitting (optbinning can handle missing but better to be explicit)
+                                    mask = ~(np.isnan(x) | pd.isna(y))
+                                    x_clean = x[mask]
+                                    y_clean = y[mask]
                                     
-                                    if use_optbinning:
-                                        # Use optbinning library - optimizes IV directly
-                                        monotonic_trend = "ascending" if monotonic else "auto"
-                                        
-                                        optb = OptimalBinning(
-                                            name=selected_bin_col,
-                                            dtype="numerical",
-                                            solver="cp",  # Constraint programming solver
-                                            max_n_bins=num_bins,
-                                            min_bin_size=0.05,  # At least 5% per bin
-                                            monotonic_trend=monotonic_trend,
-                                            special_codes=None,
-                                            cat_cutoff=None
-                                        )
-                                        optb.fit(X_clean, y_clean)
-                                        
-                                        # Get splits from optbinning
+                                    # Configure OptimalBinning
+                                    # monotonic_trend: 'auto_asc_desc' enforces monotonic (either way)
+                                    monotonic_trend = "auto_asc_desc" if monotonic else "auto"
+                                    
+                                    optb = OptimalBinning(
+                                        name=selected_bin_col,
+                                        dtype="numerical",
+                                        solver="cp",
+                                        max_n_bins=num_bins,
+                                        min_bin_size=0.05,  # Min 5% per bin
+                                        monotonic_trend=monotonic_trend,
+                                        random_state=42
+                                    )
+                                    
+                                    # Fit
+                                    optb.fit(x_clean, y_clean)
+                                    
+                                    # Status check
+                                    if optb.status == "OPTIMAL" or optb.status == "FEASIBLE":
+                                        # Get splits
                                         splits = optb.splits
-                                        bins = [-np.inf] + list(splits) + [np.inf]
                                         
-                                        # Apply binning to full data
-                                        binned = pd.cut(bin_data, bins=bins)
+                                        # Create bins including -inf and inf
+                                        bins = np.concatenate(([-np.inf], splits, [np.inf]))
                                         
-                                        # Get WoE/IV from binning table
-                                        binning_table = optb.binning_table.build()
-                                        woe_iv_info = []
-                                        total_iv = 0
+                                        # Apply binning using standard pandas cut to get Categorical object
+                                        # This ensures downstream code works with .cat accessor
+                                        binned = pd.cut(bin_data, bins=bins, include_lowest=True)
                                         
-                                        for i, row in binning_table.iterrows():
-                                            if row['Bin'] not in ['Special', 'Missing', 'Totals']:
-                                                woe_val = row['WoE'] if not pd.isna(row['WoE']) else 0
-                                                iv_val = row['IV'] if not pd.isna(row['IV']) else 0
-                                                total_iv += iv_val
-                                                woe_iv_info.append({
-                                                    'bin': i, 
-                                                    'range': str(row['Bin']), 
-                                                    'good': int(row['Count (0)']) if 'Count (0)' in row else int(row.get('Count', 0) - row.get('Count (1)', 0)),
-                                                    'bad': int(row['Count (1)']) if 'Count (1)' in row else 0,
-                                                    'woe': round(woe_val, 4), 
-                                                    'iv': round(iv_val, 4)
-                                                })
+                                        # Calculate WoE values map for later use if needed, 
+                                        # but downstream code seems to handle binning codes.
+                                        # If we want to store actual WoE values, we might need to change downstream logic.
+                                        # For now, let's stick to returning categorical bins to fix the crash.
+                                        # Note: If Optimal Binning implies we MUST return WoE, we should adapt the downstream
+                                        # code to separate 'binned_category' for display vs 'binned_value' for storage.
+                                        # Based on current code structure, it calculates labels from 'binned'.
                                         
-                                        # Store IV info for display
-                                        st.session_state._optimal_binning_iv = total_iv
-                                        st.session_state._optimal_binning_details = woe_iv_info
-                                        
+                                        st.success(f"✅ Đã tìm thấy {len(splits) + 1} bins tối ưu (Status: {optb.status})")
+                                        st.info(f"📍 Các điểm cắt: {', '.join([f'{s:.4f}' for s in splits])}")
                                     else:
-                                        # Fallback to Decision Tree based approach
-                                        from sklearn.tree import DecisionTreeClassifier
-                                        from sklearn import __version__ as sklearn_version
+                                        st.warning(f"⚠️ Không tìm thấy phân chia tối ưu (Status: {optb.status}). Dùng mặc định.")
+                                        binned = None
                                         
-                                        # Use Decision Tree to find optimal splits
-                                        tree_params = {
-                                            'max_leaf_nodes': num_bins,
-                                            'min_samples_leaf': max(50, int(len(y_clean) * 0.05)),
-                                            'random_state': 42
-                                        }
-                                        
-                                        # Add monotonic constraint if enabled and sklearn supports it
-                                        if monotonic:
-                                            try:
-                                                major, minor = map(int, sklearn_version.split('.')[:2])
-                                                if (major, minor) >= (1, 4):
-                                                    tree_params['monotonic_cst'] = [1]
-                                            except:
-                                                pass
-                                        
-                                        tree = DecisionTreeClassifier(**tree_params)
-                                        tree.fit(X_clean.reshape(-1, 1), y_clean)
-                                        
-                                        # Get split points from tree
-                                        thresholds = tree.tree_.threshold
-                                        thresholds = thresholds[thresholds != -2]
-                                        thresholds = sorted(thresholds)
-                                        
-                                        bins = [-np.inf] + list(thresholds) + [np.inf]
-                                        binned = pd.cut(bin_data, bins=bins)
-                                        
-                                        # Calculate WoE and IV for display
-                                        woe_iv_info = []
-                                        total_good = (y_clean == 0).sum()
-                                        total_bad = (y_clean == 1).sum()
-                                        total_iv = 0
-                                        
-                                        for i, cat in enumerate(binned.cat.categories):
-                                            mask_bin = binned == cat
-                                            bin_good = ((st.session_state.data[target_col_for_binning] == 0) & mask_bin).sum()
-                                            bin_bad = ((st.session_state.data[target_col_for_binning] == 1) & mask_bin).sum()
-                                            
-                                            dist_good = max(bin_good / total_good, 0.0001) if total_good > 0 else 0.0001
-                                            dist_bad = max(bin_bad / total_bad, 0.0001) if total_bad > 0 else 0.0001
-                                            
-                                            woe = np.log(dist_good / dist_bad)
-                                            iv = (dist_good - dist_bad) * woe
-                                            total_iv += iv
-                                            
-                                            woe_iv_info.append({
-                                                'bin': i, 'range': str(cat), 
-                                                'good': bin_good, 'bad': bin_bad,
-                                                'woe': round(woe, 4), 'iv': round(iv, 4)
-                                            })
-                                        
-                                        st.session_state._optimal_binning_iv = total_iv
-                                        st.session_state._optimal_binning_details = woe_iv_info
-                                    
+                                except ImportError:
+                                    st.error("❌ Thư viện `optbinning` chưa được cài đặt. Vui lòng chạy `pip install optbinning`.")
+                                    binned = None
                                 except Exception as e:
                                     st.error(f"❌ Lỗi Optimal Binning: {str(e)}")
-                                    # Fallback to equal frequency
-                                    binned, bins = pd.qcut(bin_data, q=num_bins, retbins=True, duplicates='drop')
+                                    binned = None
                         
                         elif binning_method == "Equal Width (Khoảng đều)":
                             binned, bins = pd.cut(bin_data, bins=num_bins, retbins=True)
@@ -2102,6 +2085,16 @@ def binning_fragment(data):
         st.info("💡 Không có biến số để thực hiện binning")
 
 
+
+# =============================================================================
+# FRAGMENT 7: CHUẨN HÓA DỮ LIỆU (Scaling)
+# - Đưa các biến số về cùng một thang đo
+# - Các phương pháp Scaling:
+#   * StandardScaler: Z-score normalization (Mean=0, Std=1)
+#   * MinMaxScaler: Scaling về khoảng [0, 1]
+#   * RobustScaler: Dựa trên IQR, chịu được outliers tốt hơn
+# - Áp dụng cho các biến số (trừ biến Target và Binary)
+# =============================================================================
 @st.fragment
 def scaling_fragment(data):
     """Fragment để chuẩn hóa/scaling biến số - không gây rerun toàn trang"""
@@ -2349,6 +2342,16 @@ def scaling_fragment(data):
         st.info("💡 Không có biến số để scaling")
 
 
+
+# =============================================================================
+# FRAGMENT 8: CÂN BẰNG DỮ LIỆU (Imbalanced Data Handling)
+# - Xử lý vấn đề mất cân bằng dữ liệu (Imbalanced Dataset)
+# - Chỉ áp dụng cho bài toán Phân loại (Classification)
+# - Các phương pháp:
+#   * Random Undersampling: Giảm mẫu lớp đa số
+#   * Random Oversampling: Tăng mẫu lớp thiểu số
+#   * SMOTE: Sinh mẫu tổng hợp cho lớp thiểu số
+# =============================================================================
 @st.fragment
 def balancing_fragment(data):
     """Fragment để xử lý cân bằng dữ liệu - không gây rerun toàn trang"""
@@ -2384,7 +2387,7 @@ def balancing_fragment(data):
         
         balance_method = st.selectbox(
             "Phương pháp:",
-            ["SMOTE", "Random Over-sampling", "Random Under-sampling", "No Balancing"],
+            ["SMOTE", "Random Over-sampling", "Random Under-sampling"],
             key="balance_method_frag",
             help="SMOTE: Synthetic Minority Over-sampling\nOver-sampling: Nhân bản class thiểu số\nUnder-sampling: Giảm class đa số"
         )
@@ -2460,16 +2463,7 @@ def balancing_fragment(data):
             else:
                 st.warning("⚠️ Vui lòng chọn target column hợp lệ")
         
-        # Undo button
-        if st.session_state.get('balance_info'):
-            st.markdown("---")
-            if st.button("↩️ Hoàn Tác Cân Bằng", key="undo_balance_frag", width='stretch'):
-                if 'data_before_balance' in st.session_state.get('column_backups', {}):
-                    st.session_state.data = st.session_state.column_backups['data_before_balance'].copy()
-                    del st.session_state.column_backups['data_before_balance']
-                    del st.session_state.balance_info
-                    st.session_state._balance_success = "✅ Đã hoàn tác cân bằng dữ liệu!"
-                    st.rerun(scope="fragment")
+
     
     with col_balance2:
         st.markdown("##### 📊 Phân Bổ Class")
@@ -2539,6 +2533,16 @@ def balancing_fragment(data):
             st.info("💡 Chưa xác định được target column. Vui lòng chọn target ở phần cấu hình bên trái.")
 
 
+# =============================================================================
+# FRAGMENT 10: CHỌN ĐẶC TRƯNG (Feature Selection)
+# - Chọn lọc các features quan trọng nhất để đưa vào mô hình
+# - Các phương pháp hỗ trợ:
+#   * Loại bỏ biến có phương sai thấp (Low Variance)
+#   * Tương quan với Target (Correlation)
+#   * Recursive Feature Elimination (RFE)
+#   * SelectKBest (Chi-squared, ANOVA F-value)
+#   * Feature Importance từ Tree-based models (Random Forest, XGBoost)
+# =============================================================================
 @st.fragment
 def feature_selection_fragment(data):
     """Fragment để chọn đặc trưng cho mô hình - không gây rerun toàn trang"""
@@ -2603,12 +2607,84 @@ def feature_selection_fragment(data):
             )
             
             if st.button("🔄 Chọn Tự Động", key="auto_select_frag", disabled=is_view_only):
-                # Mock auto selection
-                num_selected = np.random.randint(5, min(15, len(available_features)))
-                selected = np.random.choice(available_features, num_selected, replace=False).tolist()
-                st.session_state.selected_features = selected
-                st.session_state._feature_selection_success = f"✅ Đã chọn tự động {len(selected)} đặc trưng!"
-                st.rerun(scope="fragment")
+                try:
+                    results = None
+                    recalculate = True
+                    
+                    # Check if feature importance results already exist
+                    if 'feature_importance_results' in st.session_state and st.session_state.feature_importance_results:
+                        # Validate if target matches
+                        prev_target = st.session_state.get('importance_target_col')
+                        if prev_target == saved_target:
+                            results = st.session_state.feature_importance_results
+                            st.info(f"💡 Sử dụng kết quả Feature Importance đã có (Phương pháp: {results['method']})")
+                            recalculate = False
+                        else:
+                            st.warning(f"⚠️ Kết quả cũ được tính cho target `{prev_target}`, khác với target hiện tại `{saved_target}`. Hệ thống sẽ tính toán lại.")
+                    
+                    if recalculate:
+                        # Calculate new importance using Random Forest default
+                        st.info("⏳ Đang tính toán độ quan trọng đặc trưng (Random Forest)...")
+                        
+                        from backend.models.feature_importance import calculate_feature_importance
+                        
+                        # Get data for calculation
+                        if 'train_data' in st.session_state and st.session_state.train_data is not None:
+                            calc_data = st.session_state.train_data
+                        else:
+                            calc_data = st.session_state.data
+                            st.warning("⚠️ Đang sử dụng toàn bộ dữ liệu (chưa chia tập) để tính toán.")
+                        
+                        # Prepare data
+                        if saved_target not in calc_data.columns:
+                            st.error(f"❌ Không tìm thấy cột target '{saved_target}' trong dữ liệu")
+                            st.stop()
+                            
+                        X = calc_data.drop(columns=[saved_target])
+                        y = calc_data[saved_target]
+                        
+                        # Calculate
+                        results = calculate_feature_importance(
+                            X_train=X,
+                            y_train=y,
+                            method="Random Forest",
+                            top_n=len(X.columns), # Get all features
+                            task_type="classification"
+                        )
+                        
+                        # Save results
+                        st.session_state.feature_importance_results = results
+                        st.session_state.importance_target_col = saved_target
+                    
+                    # Filter features based on threshold
+                    all_feats = results['all_feature_names']
+                    all_scores = results['all_importance_scores']
+                    
+                    selected = []
+                    dropped_features = []
+                    
+                    # Use a small epsilon for float comparison to handle precision issues
+                    epsilon = 1e-6
+                    
+                    for feat, score in zip(all_feats, all_scores):
+                        if score >= importance_threshold - epsilon:
+                            if feat in available_features:
+                                selected.append(feat)
+                            else:
+                                dropped_features.append(feat)
+                    
+                    # Report results
+                    if dropped_features:
+                        st.warning(f"⚠️ Có {len(dropped_features)} đặc trưng đạt ngưỡng nhưng không có trong danh sách hiện tại (đã bị loại bỏ hoặc là target): {', '.join(dropped_features[:5])}...")
+                    
+                    st.session_state.selected_features = selected
+                    st.session_state._feature_selection_success = f"✅ Đã chọn {len(selected)} đặc trưng với độ quan trọng >= {importance_threshold}"
+                    st.rerun(scope="fragment")
+                    
+                except Exception as e:
+                    st.error(f"❌ Lỗi khi chọn đặc trưng: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc())
     
     with col2:
         # Manual selection
@@ -2671,6 +2747,14 @@ def feature_selection_fragment(data):
         st.warning("⚠️ Chưa chọn đặc trưng nào. Vui lòng chọn ít nhất một đặc trưng.")
 
 
+
+# =============================================================================
+# HÀM CHÍNH: QUẢN LÝ LUỒNG FEATURE ENGINEERING
+# - Quản lý State của toàn bộ quy trình
+# - Hiển thị Progress Bar
+# - Điều hướng giữa các bước (Next/Previous)
+# - Tổng hợp kết quả từ các steps
+# =============================================================================
 def render():
     """Render trang xử lý và chọn biến"""
     init_session_state()
@@ -3031,7 +3115,23 @@ def render():
                         if st.button("↩️", key=f"undo_encoding_{col}", help=f"Hoàn tác mã hóa {col}"):
                             # Restore original column
                             backup_key = f"encoding_{col}"
-                            st.session_state.data[col] = st.session_state.column_backups[backup_key]
+                            backup = st.session_state.column_backups[backup_key]
+                            
+                            # Restore main data
+                            st.session_state.data[col] = backup['data']
+                            
+                            # Restore train_data
+                            if backup.get('train_data') is not None:
+                                st.session_state.train_data[col] = backup['train_data']
+                            
+                            # Restore valid_data
+                            if backup.get('valid_data') is not None and st.session_state.get('valid_data') is not None:
+                                st.session_state.valid_data[col] = backup['valid_data']
+                            
+                            # Restore test_data
+                            if backup.get('test_data') is not None and st.session_state.get('test_data') is not None:
+                                st.session_state.test_data[col] = backup['test_data']
+                            
                             del st.session_state.column_backups[backup_key]
                             
                             # Remove encoded columns if One-Hot
@@ -3041,6 +3141,12 @@ def render():
                                     for new_col in enc_info['new_columns']:
                                         if new_col in st.session_state.data.columns:
                                             st.session_state.data.drop(columns=[new_col], inplace=True)
+                                        if st.session_state.get('train_data') is not None and new_col in st.session_state.train_data.columns:
+                                            st.session_state.train_data.drop(columns=[new_col], inplace=True)
+                                        if st.session_state.get('valid_data') is not None and new_col in st.session_state.valid_data.columns:
+                                            st.session_state.valid_data.drop(columns=[new_col], inplace=True)
+                                        if st.session_state.get('test_data') is not None and new_col in st.session_state.test_data.columns:
+                                            st.session_state.test_data.drop(columns=[new_col], inplace=True)
                                 del st.session_state.encoding_applied_info[col]
                             
                             # Remove from encoding config
@@ -3696,73 +3802,54 @@ def render():
             with col1:
                 st.markdown("#### ⚙️ Cấu Hình")
                 
-                # Select target column
-                train_cols = st.session_state.train_data.columns.tolist()
-                
-                # Try to detect target column
-                potential_targets = [col for col in train_cols 
-                                   if 'target' in col.lower() or 'default' in col.lower() 
-                                   or 'label' in col.lower() or 'churn' in col.lower()]
-                
-                if potential_targets:
-                    default_target_idx = train_cols.index(potential_targets[0])
+                # Use saved target column from session state
+                saved_target = st.session_state.get('target_column')
+                if not saved_target:
+                    st.error("❌ Chưa chọn cột Target. Vui lòng quay lại Tab 'Tiền Xử Lý' để chọn.")
                 else:
-                    default_target_idx = len(train_cols) - 1
-                
-                target_col_importance = st.selectbox(
-                    "Chọn biến mục tiêu (Target):",
-                    train_cols,
-                    index=default_target_idx,
-                    key="target_col_importance"
-                )
-                
-                importance_method = st.selectbox(
-                    "Phương pháp tính:",
-                    ["Random Forest", "LightGBM", "XGBoost", "Logistic Regression (Coef)"],
-                    key="importance_method"
-                )
-                
-                top_n = st.slider("Top N features:", 5, 30, 15, key="top_n_features")
-                
-                # Task type selection
-                task_type = st.radio(
-                    "Loại bài toán:",
-                    ["auto", "classification", "regression"],
-                    index=0,
-                    key="task_type_importance",
-                    help="auto: Tự động phát hiện dựa trên số lượng giá trị unique của target"
-                )
-                
-                if st.button("🔄 Tính Feature Importance", key="calc_importance", type="primary", disabled=is_view_only):
-                    try:
-                        with st.spinner(f"Đang tính feature importance bằng {importance_method}..."):
-                            from backend.models.feature_importance import calculate_feature_importance
-                            
-                            # Prepare data
-                            X_train = st.session_state.train_data.drop(columns=[target_col_importance])
-                            y_train = st.session_state.train_data[target_col_importance]
-                            
-                            # Calculate importance
-                            importance_results = calculate_feature_importance(
-                                X_train=X_train,
-                                y_train=y_train,
-                                method=importance_method,
-                                top_n=top_n,
-                                task_type=task_type
-                            )
-                            
-                            # Save to session state
-                            st.session_state.feature_importance_results = importance_results
-                            st.session_state.importance_target_col = target_col_importance
-                            
-                            st.success(f"✅ Đã tính xong! Phát hiện: {importance_results['task_type']}")
-                            st.rerun()
+                    st.success(f"🎯 Cột Target: **{saved_target}**")
                     
-                    except Exception as e:
-                        st.error(f"❌ Lỗi: {str(e)}")
-                        import traceback
-                        with st.expander("Chi tiết lỗi"):
-                            st.code(traceback.format_exc())
+                    importance_method = st.selectbox(
+                        "Phương pháp tính:",
+                        ["Random Forest", "LightGBM", "XGBoost", "Logistic Regression (Coef)"],
+                        key="importance_method"
+                    )
+                    
+                    top_n = st.slider("Top N features:", 5, 30, 15, key="top_n_features")
+                    
+                    # Task type hardcoded to classification as per user request
+                    task_type = "classification"
+                    
+                    if st.button("🔄 Tính Feature Importance", key="calc_importance", type="primary", disabled=is_view_only):
+                        try:
+                            with st.spinner(f"Đang tính feature importance bằng {importance_method}..."):
+                                from backend.models.feature_importance import calculate_feature_importance
+                                
+                                # Prepare data
+                                X_train = st.session_state.train_data.drop(columns=[saved_target])
+                                y_train = st.session_state.train_data[saved_target]
+                                
+                                # Calculate importance
+                                importance_results = calculate_feature_importance(
+                                    X_train=X_train,
+                                    y_train=y_train,
+                                    method=importance_method,
+                                    top_n=top_n,
+                                    task_type=task_type
+                                )
+                                
+                                # Save to session state
+                                st.session_state.feature_importance_results = importance_results
+                                st.session_state.importance_target_col = saved_target
+                            
+                                st.success(f"✅ Đã tính xong! Phát hiện: {importance_results['task_type']}")
+                                st.rerun()
+                        
+                        except Exception as e:
+                            st.error(f"❌ Lỗi: {str(e)}")
+                            import traceback
+                            with st.expander("Chi tiết lỗi"):
+                                st.code(traceback.format_exc())
                 
                 # Show info - use main data for accurate column count
                 if st.session_state.train_data is not None:
@@ -3900,23 +3987,23 @@ def render():
             with col1:
                 st.markdown("#### ⚙️ Cấu Hình")
                 
-                # Select target column
-                train_cols = st.session_state.train_data.columns.tolist()
-                target_col = st.selectbox(
-                    "Chọn biến mục tiêu (Target):",
-                    train_cols,
-                    key="woe_target_col",
-                    help="Target phải là biến nhị phân (0/1)"
-                )
-                
-                # Select features to analyze
-                feature_cols = [col for col in train_cols if col != target_col]
-                selected_features = st.multiselect(
-                    "Chọn biến để phân tích WOE:",
-                    feature_cols,
-                    default=feature_cols[:min(5, len(feature_cols))],
-                    key="woe_features"
-                )
+                # Use saved target column from session state
+                saved_target = st.session_state.get('target_column')
+                if not saved_target:
+                    st.error("❌ Chưa chọn cột Target. Vui lòng quay lại Tab 'Tiền Xử Lý' để chọn.")
+                else:
+                    st.success(f"🎯 Cột Target: **{saved_target}**")
+                    target_col = saved_target
+                    
+                    # Select features to analyze
+                    train_cols = st.session_state.train_data.columns.tolist()
+                    feature_cols = [col for col in train_cols if col != target_col]
+                    selected_features = st.multiselect(
+                        "Chọn biến để phân tích WOE:",
+                        feature_cols,
+                        default=feature_cols[:min(5, len(feature_cols))],
+                        key="woe_features"
+                    )
                 
                 # Number of bins for continuous variables
                 n_bins = st.slider(
@@ -3932,22 +4019,103 @@ def render():
                         st.error("⚠️ Vui lòng chọn ít nhất một biến")
                     else:
                         with st.spinner("Đang tính WOE và Information Value..."):
-                            # Mock calculation
-                            import time
-                            time.sleep(1.5)
+                            try:
+                                from optbinning import OptimalBinning
+                                
+                                # Get training data
+                                train_data = st.session_state.get('train_data')
+                                if train_data is None:
+                                    train_data = st.session_state.data
+                                    st.warning("⚠️ Chưa chia tập dữ liệu, sử dụng toàn bộ data.")
+                                
+                                # Target variable
+                                y = train_data[target_col].values
+                                
+                                woe_results = {}
+                                errors = []
+                                
+                                for feat in selected_features:
+                                    try:
+                                        x = train_data[feat].values
+                                        
+                                        # Determine dtype
+                                        if train_data[feat].dtype in ['object', 'category']:
+                                            dtype = "categorical"
+                                        else:
+                                            dtype = "numerical"
+                                        
+                                        # Handle missing values
+                                        mask = ~(pd.isna(x) | pd.isna(y))
+                                        x_clean = x[mask]
+                                        y_clean = y[mask]
+                                        
+                                        # Skip if not enough data
+                                        if len(x_clean) < 10:
+                                            errors.append(f"{feat}: Không đủ dữ liệu")
+                                            continue
+                                        
+                                        # Initialize OptimalBinning
+                                        optb = OptimalBinning(
+                                            name=feat,
+                                            dtype=dtype,
+                                            solver="cp",
+                                            max_n_bins=n_bins,
+                                            min_bin_size=0.05,
+                                            monotonic_trend="auto_asc_desc",
+                                            random_state=42
+                                        )
+                                        
+                                        # Fit
+                                        optb.fit(x_clean, y_clean)
+                                        
+                                        # Get IV from binning table
+                                        if optb.status in ["OPTIMAL", "FEASIBLE"]:
+                                            binning_table = optb.binning_table.build()
+                                            # IV is the sum of IV column (excluding totals row)
+                                            iv = binning_table['IV'].iloc[:-1].sum()
+                                            
+                                            # Determine predictive power
+                                            if iv >= 0.5:
+                                                power = "Suspicious (Overfitting?)"
+                                            elif iv >= 0.3:
+                                                power = "Strong"
+                                            elif iv >= 0.1:
+                                                power = "Medium"
+                                            elif iv >= 0.02:
+                                                power = "Weak"
+                                            else:
+                                                power = "Useless"
+                                            
+                                            woe_results[feat] = {
+                                                'iv': iv,
+                                                'bins': len(optb.splits) + 1 if hasattr(optb, 'splits') and optb.splits is not None else n_bins,
+                                                'predictive_power': power,
+                                                'status': optb.status,
+                                                'dtype': dtype,
+                                                'binning_table': binning_table.to_dict('records')
+                                            }
+                                        else:
+                                            errors.append(f"{feat}: Status={optb.status}")
+                                    
+                                    except Exception as e:
+                                        errors.append(f"{feat}: {str(e)[:50]}")
+                                
+                                st.session_state.woe_results = woe_results
+                                
+                                if woe_results:
+                                    st.success(f"✅ Đã tính WOE cho {len(woe_results)}/{len(selected_features)} biến!")
+                                if errors:
+                                    with st.expander(f"⚠️ {len(errors)} biến gặp lỗi"):
+                                        for err in errors:
+                                            st.text(f"• {err}")
                             
-                            # Create mock WOE results
-                            woe_results = {}
-                            for feat in selected_features:
-                                iv = np.random.uniform(0.02, 0.5)
-                                woe_results[feat] = {
-                                    'iv': iv,
-                                    'bins': n_bins,
-                                    'predictive_power': 'Strong' if iv > 0.3 else 'Medium' if iv > 0.1 else 'Weak'
-                                }
-                            
-                            st.session_state.woe_results = woe_results
-                            st.success(f"✅ Đã tính WOE cho {len(selected_features)} biến!")
+                            except ImportError:
+                                st.error("❌ Thư viện `optbinning` chưa được cài đặt. Vui lòng chạy `pip install optbinning`.")
+                            except Exception as e:
+                                st.error(f"❌ Lỗi: {str(e)}")
+                                import traceback
+                                with st.expander("Chi tiết lỗi"):
+                                    st.code(traceback.format_exc())
             
             with col2:
                 st.markdown("#### 📊 Kết Quả WOE & Information Value")
@@ -4077,29 +4245,55 @@ def render():
                         st.error("⚠️ Vui lòng chọn ít nhất 2 biến")
                     else:
                         with st.spinner(f"Đang tính toán {method}..."):
-                            import time
-                            time.sleep(1.5)
+                            try:
+                                # Get training data
+                                train_data = st.session_state.get('train_data')
+                                if train_data is None:
+                                    train_data = st.session_state.data
+                                    st.warning("⚠️ Chưa chia tập dữ liệu, sử dụng toàn bộ data.")
+                                
+                                # Select only the chosen features and drop NaN
+                                data_subset = train_data[selected_features].dropna()
+                                
+                                if len(data_subset) < 10:
+                                    st.error("❌ Không đủ dữ liệu sau khi xử lý missing values.")
+                                else:
+                                    if method == "VIF (Variance Inflation Factor)":
+                                        # Real VIF calculation using statsmodels
+                                        from statsmodels.stats.outliers_influence import variance_inflation_factor
+                                        
+                                        # Add constant for VIF calculation
+                                        from statsmodels.tools.tools import add_constant
+                                        X = add_constant(data_subset)
+                                        
+                                        vif_data = []
+                                        for i, col in enumerate(X.columns):
+                                            if col == 'const':
+                                                continue
+                                            try:
+                                                vif_value = variance_inflation_factor(X.values, i)
+                                                vif_data.append({'Feature': col, 'VIF': vif_value})
+                                            except Exception as e:
+                                                vif_data.append({'Feature': col, 'VIF': np.nan})
+                                        
+                                        vif_results = pd.DataFrame(vif_data).sort_values('VIF', ascending=False)
+                                        
+                                        st.session_state.vif_results = vif_results
+                                        st.success(f"✅ Đã tính VIF cho {len(vif_results)} biến!")
+                                    else:
+                                        # Real correlation matrix using pandas
+                                        corr_df = data_subset.corr(method='pearson')
+                                        
+                                        st.session_state.corr_matrix = corr_df
+                                        st.success(f"✅ Đã tính correlation matrix cho {len(selected_features)} biến!")
                             
-                            if method == "VIF (Variance Inflation Factor)":
-                                # Mock VIF calculation
-                                vif_results = pd.DataFrame({
-                                    'Feature': selected_features,
-                                    'VIF': np.random.uniform(1.0, 15.0, len(selected_features))
-                                }).sort_values('VIF', ascending=False)
-                                
-                                st.session_state.vif_results = vif_results
-                                # st.session_state.vif_threshold is already updated by the slider widget
-                                st.success(f"✅ Đã tính VIF cho {len(selected_features)} biến!")
-                            else:
-                                # Mock correlation matrix
-                                corr_matrix = np.random.rand(len(selected_features), len(selected_features))
-                                corr_matrix = (corr_matrix + corr_matrix.T) / 2
-                                np.fill_diagonal(corr_matrix, 1.0)
-                                corr_df = pd.DataFrame(corr_matrix, columns=selected_features, index=selected_features)
-                                
-                                st.session_state.corr_matrix = corr_df
-                                # st.session_state.corr_threshold is already updated by the slider widget
-                                st.success(f"✅ Đã tính correlation matrix cho {len(selected_features)} biến!")
+                            except ImportError:
+                                st.error("❌ Thư viện `statsmodels` chưa được cài đặt. Vui lòng chạy `pip install statsmodels`.")
+                            except Exception as e:
+                                st.error(f"❌ Lỗi: {str(e)}")
+                                import traceback
+                                with st.expander("Chi tiết lỗi"):
+                                    st.code(traceback.format_exc())
             
             with col2:
                 st.markdown("#### 📊 Kết Quả Phân Tích")

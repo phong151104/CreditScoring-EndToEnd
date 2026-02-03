@@ -1,5 +1,39 @@
 """
-Authentication Logic - User management and authentication
+=============================================================================
+AUTHENTICATION MODULE - XÁC THỰC VÀ QUẢN LÝ NGƯỜI DÙNG
+=============================================================================
+Mô tả:
+    Module xử lý xác thực (authentication) và quản lý người dùng.
+    Lưu trữ users trong file JSON đơn giản.
+
+CÁC VAI TRÒ (ROLES):
+    - admin: Quản trị viên - Full quyền
+    - model_builder: Xây dựng mô hình - Không có admin settings
+    - validator: Kiểm định viên - Chỉ xem
+    - scorer: Người chấm điểm - Chỉ prediction
+
+TÀI KHOẢN MẶC ĐỊNH (Development):
+    | Username  | Password     | Role          |
+    |-----------|--------------|---------------|
+    | admin     | admin123     | admin         |
+    | builder   | builder123   | model_builder |
+    | validator | validator123 | validator     |
+    | scorer    | scorer123    | scorer        |
+
+Các hàm chính:
+    - authenticate(): Xác thực username/password
+    - get_user(): Lấy thông tin user theo username
+    - get_all_users(): Lấy danh sách tất cả users
+    - create_user(): Tạo user mới
+    - update_user(): Cập nhật thông tin user
+    - delete_user(): Xóa user
+    - hash_password(): Hash mật khẩu bằng SHA-256
+    - verify_password(): Xác minh mật khẩu
+
+Bảo mật:
+    - Mật khẩu được hash bằng SHA-256
+    - Input được sanitize để loại bỏ ký tự Unicode ẩn (từ Unikey)
+=============================================================================
 """
 
 import json
@@ -9,7 +43,10 @@ from dataclasses import dataclass
 from typing import Optional, Dict, List
 from pathlib import Path
 
-# Role definitions
+
+# =============================================================================
+# ĐỊNH NGHĨA VAI TRÒ (ROLE DEFINITIONS)
+# =============================================================================
 ROLES = ['admin', 'model_builder', 'validator', 'scorer']
 ROLE_NAMES = {
     'admin': 'Quản trị viên',
@@ -17,6 +54,11 @@ ROLE_NAMES = {
     'validator': 'Kiểm định viên', 
     'scorer': 'Người chấm điểm'
 }
+
+
+# =============================================================================
+# USER MODEL CLASS
+# =============================================================================
 
 @dataclass
 class User:
