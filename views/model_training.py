@@ -1082,7 +1082,7 @@ def render():
                     else:
                         # Original UI for non-stacking models
                         # Define tuning methods list
-                        tuning_methods = ["Grid Search", "Random Search", "Optuna (Bayesian)", "Bayesian Optimization"]
+                        tuning_methods = ["Grid Search", "Random Search", "Optuna (Bayesian)"]
                         
                         # Get default index from saved tuning method
                         tuning_default_idx = 0
@@ -1130,8 +1130,7 @@ def render():
                                 method_map = {
                                     "Grid Search": "Grid Search",
                                     "Random Search": "Random Search",
-                                    "Optuna (Bayesian)": "Optuna",
-                                    "Bayesian Optimization": "Bayesian Optimization"
+                                    "Optuna (Bayesian)": "Optuna"
                                 }
                                 backend_method = method_map.get(tuning_method, tuning_method)
                                 
